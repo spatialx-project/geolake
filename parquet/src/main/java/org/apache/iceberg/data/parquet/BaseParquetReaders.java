@@ -32,6 +32,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryValueType;
+import org.apache.iceberg.parquet.GeoParquetUtil;
+import org.apache.iceberg.parquet.GeoParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -55,19 +59,29 @@ public abstract class BaseParquetReaders<T> {
     return createReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
-  @SuppressWarnings("unchecked")
   protected ParquetValueReader<T> createReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
+    return createReader(expectedSchema, fileSchema, idToConstant, ImmutableMap.of());
+  }
+
+  @SuppressWarnings("unchecked")
+  protected ParquetValueReader<T> createReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<String, String> properties) {
     if (ParquetSchemaUtil.hasIds(fileSchema)) {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(
-              expectedSchema.asStruct(), fileSchema, new ReadBuilder(fileSchema, idToConstant));
+              expectedSchema.asStruct(),
+              fileSchema,
+              new ReadBuilder(fileSchema, idToConstant, properties));
     } else {
       return (ParquetValueReader<T>)
           TypeWithSchemaVisitor.visit(
               expectedSchema.asStruct(),
               fileSchema,
-              new FallbackReadBuilder(fileSchema, idToConstant));
+              new FallbackReadBuilder(fileSchema, idToConstant, properties));
     }
   }
 
@@ -75,8 +89,9 @@ public abstract class BaseParquetReaders<T> {
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, Types.StructType structType);
 
   private class FallbackReadBuilder extends ReadBuilder {
-    private FallbackReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
-      super(type, idToConstant);
+    private FallbackReadBuilder(
+        MessageType type, Map<Integer, ?> idToConstant, Map<String, String> properties) {
+      super(type, idToConstant, properties);
     }
 
     @Override
@@ -111,10 +126,16 @@ public abstract class BaseParquetReaders<T> {
   private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
     private final MessageType type;
     private final Map<Integer, ?> idToConstant;
+    private final GeometryValueType geometryJavaType;
 
-    private ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
+    private ReadBuilder(
+        MessageType type, Map<Integer, ?> idToConstant, Map<String, String> properties) {
       this.type = type;
       this.idToConstant = idToConstant;
+      this.geometryJavaType =
+          GeometryValueType.of(
+              properties.getOrDefault(
+                  "read.parquet.geometry.java-type", GeometryValueType.JTS_GEOMETRY.toString()));
     }
 
     @Override
@@ -221,6 +242,32 @@ public abstract class BaseParquetReaders<T> {
     }
 
     @Override
+    public ParquetValueReader<?> struct(
+        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
+      if (iPrimitive != null
+          && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+        GeometryEncoding geometryEncoding = GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
+        switch (geometryEncoding) {
+          case WKB_BBOX:
+            return GeoParquetValueReaders.createGeometryWKBBBoxReader(
+                type, currentPath(), geometryJavaType);
+          case NESTED_LIST:
+            return GeoParquetValueReaders.createGeometryNestedListReader(
+                type, currentPath(), geometryJavaType);
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported geometry encoding of group type " + struct);
+        }
+      } else {
+        throw new UnsupportedOperationException(
+            "Cannot create reader for reading group type "
+                + struct
+                + " as primitive type "
+                + iPrimitive);
+      }
+    }
+
+    @Override
     @SuppressWarnings("checkstyle:CyclomaticComplexity")
     public ParquetValueReader<?> primitive(
         org.apache.iceberg.types.Type.PrimitiveType expected, PrimitiveType primitive) {
@@ -292,21 +339,21 @@ public abstract class BaseParquetReaders<T> {
         case FIXED_LEN_BYTE_ARRAY:
           return new FixedReader(desc);
         case BINARY:
-          if (expected != null
-              && expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.STRING) {
             return new ParquetValueReaders.StringReader(desc);
+          } else if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+            return GeoParquetValueReaders.createGeometryWKBReader(desc, geometryJavaType);
           } else {
             return new ParquetValueReaders.BytesReader(desc);
           }
         case INT32:
-          if (expected != null && expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);
           }
         case FLOAT:
-          if (expected != null
-              && expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.DOUBLE) {
             return new ParquetValueReaders.FloatAsDoubleReader(desc);
           } else {
             return new ParquetValueReaders.UnboxedReader<>(desc);

@@ -121,6 +121,15 @@ public class VectorizedPageIterator extends BasePageIterator {
   }
 
   @Override
+  protected void initRepetitionLevelsReader(
+      DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in, int triplesCount)
+      throws IOException {}
+
+  @Override
+  protected void initRepetitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc)
+      throws IOException {}
+
+  @Override
   protected void initDefinitionLevelsReader(
       DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in, int triplesCount)
       throws IOException {

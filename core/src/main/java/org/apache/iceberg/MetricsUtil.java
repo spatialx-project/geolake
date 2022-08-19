@@ -44,6 +44,7 @@ public class MetricsUtil {
         .filter(
             metrics ->
                 metricsMode(inputSchema, metricsConfig, metrics.id()) != MetricsModes.None.get())
+        .filter(FieldMetrics::hasNanValueCount)
         .collect(Collectors.toMap(FieldMetrics::id, FieldMetrics::nanValueCount));
   }
 
