@@ -26,18 +26,30 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryValueType;
+import org.apache.iceberg.parquet.GeoParquetUtil;
+import org.apache.iceberg.parquet.GeoParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetTypeVisitor;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
+import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 
 public abstract class BaseParquetWriter<T> {
@@ -47,24 +59,40 @@ public abstract class BaseParquetWriter<T> {
     return (ParquetValueWriter<T>) ParquetTypeVisitor.visit(type, new WriteBuilder(type));
   }
 
+  @SuppressWarnings("unchecked")
+  protected ParquetValueWriter<T> createWriter(
+      Schema tableSchema, MessageType fileSchema, Map<String, String> properties) {
+    TableSchemaAwareWriteBuilder writeBuilder =
+        new TableSchemaAwareWriteBuilder(fileSchema, properties);
+    return (ParquetValueWriter<T>)
+        TypeWithSchemaVisitor.visit(tableSchema.asStruct(), fileSchema, writeBuilder);
+  }
+
   protected abstract ParquetValueWriters.StructWriter<T> createStructWriter(
       List<ParquetValueWriter<?>> writers);
 
-  private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+  private class GenericWriteBuilder {
     private final MessageType type;
+    private final Function<String, String[]> pathFunc;
+    private final Supplier<String[]> currentPathSupplier;
 
-    private WriteBuilder(MessageType type) {
+    private GenericWriteBuilder(
+        MessageType type,
+        Function<String, String[]> pathFunc,
+        Supplier<String[]> currentPathSupplier) {
       this.type = type;
+      this.pathFunc = pathFunc;
+      this.currentPathSupplier = currentPathSupplier;
     }
 
-    @Override
-    public ParquetValueWriter<?> message(
-        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
-
-      return struct(message.asGroupType(), fieldWriters);
+    private String[] path(String name) {
+      return pathFunc.apply(name);
     }
 
-    @Override
+    private String[] currentPath() {
+      return currentPathSupplier.get();
+    }
+
     public ParquetValueWriter<?> struct(
         GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
@@ -78,11 +106,9 @@ public abstract class BaseParquetWriter<T> {
       return createStructWriter(writers);
     }
 
-    @Override
     public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
-
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
@@ -93,12 +119,10 @@ public abstract class BaseParquetWriter<T> {
           repeatedD, repeatedR, ParquetValueWriters.option(elementType, elementD, elementWriter));
     }
 
-    @Override
     public ParquetValueWriter<?> map(
         GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
       GroupType repeatedKeyValue = map.getFields().get(0).asGroupType();
       String[] repeatedPath = currentPath();
-
       int repeatedD = type.getMaxDefinitionLevel(repeatedPath);
       int repeatedR = type.getMaxRepetitionLevel(repeatedPath);
 
@@ -114,7 +138,6 @@ public abstract class BaseParquetWriter<T> {
           ParquetValueWriters.option(valueType, valueD, valueWriter));
     }
 
-    @Override
     public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
       LogicalTypeAnnotation logicalType = primitive.getLogicalTypeAnnotation();
@@ -144,6 +167,126 @@ public abstract class BaseParquetWriter<T> {
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
       }
+    }
+  }
+
+  private class TableSchemaAwareWriteBuilder extends TypeWithSchemaVisitor<ParquetValueWriter<?>> {
+    private final GenericWriteBuilder writeBuilder;
+    private final MessageType fileSchema;
+    private final GeometryValueType geometryJavaType;
+
+    private TableSchemaAwareWriteBuilder(MessageType fileSchema, Map<String, String> properties) {
+      this.fileSchema = fileSchema;
+      this.geometryJavaType =
+          GeometryValueType.of(
+              properties.getOrDefault(
+                  "write.parquet.geometry.java-type", GeometryValueType.OBJECT.toString()));
+      this.writeBuilder = new GenericWriteBuilder(fileSchema, this::path, this::currentPath);
+    }
+
+    @Override
+    public ParquetValueWriter<?> message(
+        Types.StructType tableFieldType,
+        MessageType message,
+        List<ParquetValueWriter<?>> fieldWriters) {
+      return struct(tableFieldType, message.asGroupType(), fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> struct(
+        Types.StructType tableFieldType,
+        GroupType struct,
+        List<ParquetValueWriter<?>> fieldWriters) {
+      return writeBuilder.struct(struct, fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> struct(
+        org.apache.iceberg.types.Type.PrimitiveType tableFieldType, GroupType struct) {
+      if (tableFieldType != null && tableFieldType.typeId() == TypeID.GEOMETRY) {
+        GeometryEncoding geometryEncoding = GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
+        switch (geometryEncoding) {
+          case WKB_BBOX:
+            return GeoParquetValueWriters.createGeometryWKBBBoxWriter(
+                fileSchema, currentPath(), geometryJavaType);
+          case NESTED_LIST:
+            return GeoParquetValueWriters.createGeometryNestedListWriter(
+                fileSchema, currentPath(), geometryJavaType);
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported geometry encoding of group type " + struct);
+        }
+      } else {
+        throw new UnsupportedOperationException(
+            "Cannot create writer for writing " + tableFieldType + " as group type " + struct);
+      }
+    }
+
+    @Override
+    public ParquetValueWriter<?> list(
+        Types.ListType tableFieldType, GroupType array, ParquetValueWriter<?> elementWriter) {
+      return writeBuilder.list(array, elementWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> map(
+        Types.MapType tableFieldType,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
+      return writeBuilder.map(map, keyWriter, valueWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> primitive(
+        org.apache.iceberg.types.Type.PrimitiveType tableFieldType, PrimitiveType primitive) {
+      if (tableFieldType != null && tableFieldType.typeId() == TypeID.GEOMETRY) {
+        ColumnDescriptor desc = fileSchema.getColumnDescription(currentPath());
+        if (primitive.getPrimitiveTypeName() == PrimitiveTypeName.BINARY) {
+          return GeoParquetValueWriters.createGeometryWKBWriter(desc, geometryJavaType);
+        } else {
+          throw new UnsupportedOperationException(
+              "Encoding geometry values as " + primitive + " is not supported");
+        }
+      } else {
+        return writeBuilder.primitive(primitive);
+      }
+    }
+  }
+
+  private class WriteBuilder extends ParquetTypeVisitor<ParquetValueWriter<?>> {
+    private final GenericWriteBuilder writeBuilder;
+
+    private WriteBuilder(MessageType type) {
+      this.writeBuilder = new GenericWriteBuilder(type, this::path, this::currentPath);
+    }
+
+    @Override
+    public ParquetValueWriter<?> message(
+        MessageType message, List<ParquetValueWriter<?>> fieldWriters) {
+      return struct(message.asGroupType(), fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> struct(
+        GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+      return writeBuilder.struct(struct, fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> list(GroupType array, ParquetValueWriter<?> elementWriter) {
+      return writeBuilder.list(array, elementWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> map(
+        GroupType map, ParquetValueWriter<?> keyWriter, ParquetValueWriter<?> valueWriter) {
+      return writeBuilder.map(map, keyWriter, valueWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> primitive(PrimitiveType primitive) {
+      return writeBuilder.primitive(primitive);
     }
   }
 

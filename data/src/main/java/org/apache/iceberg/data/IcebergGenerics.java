@@ -18,12 +18,15 @@
  */
 package org.apache.iceberg.data;
 
+import java.util.Map;
 import java.util.Collection;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.io.CloseableIterable;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 
 public class IcebergGenerics {
   private IcebergGenerics() {}
@@ -41,6 +44,7 @@ public class IcebergGenerics {
   public static class ScanBuilder {
     private TableScan tableScan;
     private boolean reuseContainers = false;
+    private final Map<String, String> properties = Maps.newHashMap();
 
     public ScanBuilder(Table table) {
       this.tableScan = table.newScan();
@@ -61,8 +65,18 @@ public class IcebergGenerics {
       return this;
     }
 
+    public ScanBuilder set(String property, String value) {
+      this.properties.put(property, value);
+      return this;
+    }
+
+    public ScanBuilder setAll(Map<String, String> props) {
+      this.properties.putAll(props);
+      return this;
+    }
+
     public ScanBuilder select(String... selectedColumns) {
-      this.tableScan = tableScan.select(selectedColumns);
+      this.tableScan = tableScan.select(ImmutableList.copyOf(selectedColumns));
       return this;
     }
 
@@ -97,7 +111,7 @@ public class IcebergGenerics {
     }
 
     public CloseableIterable<Record> build() {
-      return new TableScanIterable(tableScan, reuseContainers);
+      return new TableScanIterable(tableScan, reuseContainers, properties);
     }
   }
 }
