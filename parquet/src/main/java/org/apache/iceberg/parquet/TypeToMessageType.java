@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.PARQUET_GEOMETRY_WRITE_ENCODING;
+import static org.apache.iceberg.TableProperties.PARQUET_GEOMETRY_WRITE_ENCODING_DEFAULT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BOOLEAN;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.DOUBLE;
@@ -26,8 +28,10 @@ import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.FLOAT;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT32;
 import static org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.INT64;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.avro.AvroSchemaUtil;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
 import org.apache.iceberg.types.Type.NestedType;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.TypeUtil;
@@ -56,6 +60,18 @@ public class TypeToMessageType {
       LogicalTypeAnnotation.timestampType(false /* not adjusted to UTC */, TimeUnit.MICROS);
   private static final LogicalTypeAnnotation TIMESTAMPTZ_MICROS =
       LogicalTypeAnnotation.timestampType(true /* adjusted to UTC */, TimeUnit.MICROS);
+
+  private final GeometryEncoding geometryEncoding;
+
+  public TypeToMessageType() {
+    geometryEncoding = GeometryEncoding.of(PARQUET_GEOMETRY_WRITE_ENCODING_DEFAULT);
+  }
+
+  public TypeToMessageType(Configuration conf) {
+    geometryEncoding =
+        GeometryEncoding.of(
+            conf.get(PARQUET_GEOMETRY_WRITE_ENCODING, PARQUET_GEOMETRY_WRITE_ENCODING_DEFAULT));
+  }
 
   public MessageType convert(Schema schema, String name) {
     Types.MessageTypeBuilder builder = Types.buildMessage();
@@ -186,6 +202,9 @@ public class TypeToMessageType {
             .as(LogicalTypeAnnotation.uuidType())
             .id(id)
             .named(name);
+
+      case GEOMETRY:
+        return GeoParquetUtil.getTypeForGeometryField(repetition, id, name, geometryEncoding);
 
       default:
         throw new UnsupportedOperationException("Unsupported type for Parquet: " + primitive);

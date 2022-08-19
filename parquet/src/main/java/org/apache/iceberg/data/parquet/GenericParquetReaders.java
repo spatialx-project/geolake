@@ -45,6 +45,14 @@ public class GenericParquetReaders extends BaseParquetReaders<Record> {
     return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant);
   }
 
+  public static ParquetValueReader<Record> buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<String, String> properties) {
+    return INSTANCE.createReader(expectedSchema, fileSchema, idToConstant, properties);
+  }
+
   @Override
   protected ParquetValueReader<Record> createStructReader(
       List<Type> types, List<ParquetValueReader<?>> fieldReaders, StructType structType) {
