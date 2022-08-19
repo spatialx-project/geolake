@@ -57,6 +57,11 @@ public class FieldMetrics<T> {
     return nullValueCount;
   }
 
+  /** Returns if count of NaN values was tracked by this field metrics */
+  public boolean hasNanValueCount() {
+    return true;
+  }
+
   /**
    * Returns the number of NaN values for this field. Will only be non-0 if this field is a double
    * or float field.

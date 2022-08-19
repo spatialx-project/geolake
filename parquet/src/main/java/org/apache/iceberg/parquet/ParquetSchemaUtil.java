@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.mapping.NameMapping;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
@@ -39,6 +40,10 @@ public class ParquetSchemaUtil {
 
   public static MessageType convert(Schema schema, String name) {
     return new TypeToMessageType().convert(schema, name);
+  }
+
+  public static MessageType convert(Schema schema, String name, Configuration conf) {
+    return new TypeToMessageType(conf).convert(schema, name);
   }
 
   /**
@@ -78,7 +83,8 @@ public class ParquetSchemaUtil {
   public static MessageType pruneColumns(MessageType fileSchema, Schema expectedSchema) {
     // column order must match the incoming type, so it doesn't matter that the ids are unordered
     Set<Integer> selectedIds = TypeUtil.getProjectedIds(expectedSchema);
-    return (MessageType) ParquetTypeVisitor.visit(fileSchema, new PruneColumns(selectedIds));
+    return (MessageType)
+        ParquetTypeVisitor.visit(fileSchema, new PruneColumns(expectedSchema, selectedIds));
   }
 
   /**
