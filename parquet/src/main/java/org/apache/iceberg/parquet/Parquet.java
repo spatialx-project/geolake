@@ -273,15 +273,14 @@ public class Parquet {
       }
 
       set("parquet.avro.write-old-list-structure", "false");
-      MessageType type = ParquetSchemaUtil.convert(schema, name);
+      for (Map.Entry<String, String> entry : config.entrySet()) {
+        conf.set(entry.getKey(), entry.getValue());
+      }
+      MessageType type = ParquetSchemaUtil.convert(schema, name, conf);
 
       if (createWriterFunc != null) {
         Preconditions.checkArgument(
             writeSupport == null, "Cannot write with both write support and Parquet value writer");
-
-        for (Map.Entry<String, String> entry : config.entrySet()) {
-          conf.set(entry.getKey(), entry.getValue());
-        }
 
         ParquetProperties.Builder propsBuilder =
             ParquetProperties.builder()
