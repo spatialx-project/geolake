@@ -18,6 +18,9 @@
  */
 package org.apache.iceberg.parquet;
 
+import static org.apache.iceberg.TableProperties.PARQUET_GEOMETRY_WRITE_ENCODING;
+import static org.apache.iceberg.TableProperties.PARQUET_GEOMETRY_WRITE_ENCODING_DEFAULT;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,8 +35,9 @@ import org.apache.iceberg.common.DynConstructors;
 import org.apache.iceberg.common.DynMethods;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
-import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.parquet.bytes.ByteBufferAllocator;
 import org.apache.parquet.column.ColumnWriteStore;
 import org.apache.parquet.column.ParquetProperties;
@@ -68,6 +72,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final Map<String, String> metadata;
   private final ParquetProperties props;
   private final CodecFactory.BytesCompressor compressor;
+  private final Schema tableSchema;
   private final MessageType parquetSchema;
   private final ParquetValueWriter<T> model;
   private final MetricsConfig metricsConfig;
@@ -75,6 +80,7 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   private final ParquetFileWriter.Mode writeMode;
   private final OutputFile output;
   private final Configuration conf;
+  private final GeometryEncoding geometryEncoding;
 
   private DynMethods.BoundMethod flushPageStoreToWriter;
   private ColumnWriteStore writeStore;
@@ -100,9 +106,10 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       ParquetFileWriter.Mode writeMode) {
     this.targetRowGroupSize = rowGroupSize;
     this.props = properties;
-    this.metadata = ImmutableMap.copyOf(metadata);
+    this.metadata = Maps.newHashMap();
     this.compressor = new CodecFactory(conf, props.getPageSizeThreshold()).getCompressor(codec);
-    this.parquetSchema = ParquetSchemaUtil.convert(schema, "table");
+    this.tableSchema = schema;
+    this.parquetSchema = ParquetSchemaUtil.convert(schema, "table", conf);
     this.model = (ParquetValueWriter<T>) createWriterFunc.apply(parquetSchema);
     this.metricsConfig = metricsConfig;
     this.columnIndexTruncateLength =
@@ -110,6 +117,9 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
     this.writeMode = writeMode;
     this.output = output;
     this.conf = conf;
+    this.geometryEncoding =
+        GeometryEncoding.of(
+            conf.get(PARQUET_GEOMETRY_WRITE_ENCODING, PARQUET_GEOMETRY_WRITE_ENCODING_DEFAULT));
 
     startRowGroup();
   }
@@ -144,7 +154,8 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
   public Metrics metrics() {
     Preconditions.checkState(closed, "Cannot return metrics for unclosed writer");
     if (writer != null) {
-      return ParquetUtil.footerMetrics(writer.getFooter(), model.metrics(), metricsConfig);
+      return ParquetUtil.footerMetrics(
+          tableSchema, writer.getFooter(), model.metrics(), metricsConfig);
     }
     return EMPTY_METRICS;
   }
@@ -252,6 +263,12 @@ class ParquetWriter<T> implements FileAppender<T>, Closeable {
       flushRowGroup(true);
       writeStore.close();
       if (writer != null) {
+        String geoParquetMetadata =
+            GeoParquetUtil.assembleGeoParquetMetadata(
+                tableSchema, geometryEncoding, model.metrics());
+        if (geoParquetMetadata != null) {
+          metadata.put("geo", geoParquetMetadata);
+        }
         writer.end(metadata);
       }
       if (compressor != null) {

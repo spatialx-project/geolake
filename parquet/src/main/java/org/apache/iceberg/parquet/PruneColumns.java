@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.base.Objects;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -32,10 +33,12 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 
 class PruneColumns extends ParquetTypeVisitor<Type> {
+  private final Schema schema;
   private final Set<Integer> selectedIds;
 
-  PruneColumns(Set<Integer> selectedIds) {
+  PruneColumns(Schema schema, Set<Integer> selectedIds) {
     Preconditions.checkNotNull(selectedIds, "Selected field ids cannot be null");
+    this.schema = schema;
     this.selectedIds = selectedIds;
   }
 
@@ -55,8 +58,15 @@ class PruneColumns extends ParquetTypeVisitor<Type> {
           builder.addField(field);
         } else {
           if (isStruct(originalField)) {
-            hasChange = true;
-            builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
+            org.apache.iceberg.types.Types.NestedField fieldType = schema.findField(fieldId);
+            if (fieldType != null
+                && fieldType.type().typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY
+                && GeoParquetUtil.isGroupTypeRepresentsGeometry(originalField.asGroupType())) {
+              builder.addField(originalField);
+            } else {
+              hasChange = true;
+              builder.addField(originalField.asGroupType().withNewFields(Collections.emptyList()));
+            }
           } else {
             builder.addField(originalField);
           }
