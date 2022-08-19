@@ -39,6 +39,7 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.orc.ORC;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.TypeUtil;
@@ -60,24 +61,38 @@ class GenericReader implements Serializable {
   }
 
   CloseableIterator<Record> open(CloseableIterable<CombinedScanTask> tasks) {
+    return open(tasks, ImmutableMap.of());
+  }
+
+  CloseableIterator<Record> open(
+      CloseableIterable<CombinedScanTask> tasks, Map<String, String> properties) {
     Iterable<FileScanTask> fileTasks =
         Iterables.concat(Iterables.transform(tasks, CombinedScanTask::files));
-    return CloseableIterable.concat(Iterables.transform(fileTasks, this::open)).iterator();
+    return CloseableIterable.concat(Iterables.transform(fileTasks, task -> open(task, properties)))
+        .iterator();
+  }
+
+  public CloseableIterable<Record> open(CombinedScanTask task, Map<String, String> properties) {
+    return new CombinedTaskIterable(task, properties);
   }
 
   public CloseableIterable<Record> open(CombinedScanTask task) {
-    return new CombinedTaskIterable(task);
+    return open(task, ImmutableMap.of());
   }
 
-  public CloseableIterable<Record> open(FileScanTask task) {
+  public CloseableIterable<Record> open(FileScanTask task, Map<String, String> properties) {
     DeleteFilter<Record> deletes = new GenericDeleteFilter(io, task, tableSchema, projection);
     Schema readSchema = deletes.requiredSchema();
 
-    CloseableIterable<Record> records = openFile(task, readSchema);
+    CloseableIterable<Record> records = openFile(task, readSchema, properties);
     records = deletes.filter(records);
     records = applyResidual(records, readSchema, task.residual());
 
     return records;
+  }
+
+  public CloseableIterable<Record> open(FileScanTask task) {
+    return open(task, ImmutableMap.of());
   }
 
   private CloseableIterable<Record> applyResidual(
@@ -91,7 +106,8 @@ class GenericReader implements Serializable {
     return records;
   }
 
-  private CloseableIterable<Record> openFile(FileScanTask task, Schema fileProjection) {
+  private CloseableIterable<Record> openFile(
+      FileScanTask task, Schema fileProjection, Map<String, String> properties) {
     InputFile input = io.newInputFile(task.file().path().toString());
     Map<Integer, ?> partition =
         PartitionUtil.constantsMap(task, IdentityPartitionConverters::convertConstant);
@@ -117,7 +133,8 @@ class GenericReader implements Serializable {
                 .project(fileProjection)
                 .createReaderFunc(
                     fileSchema ->
-                        GenericParquetReaders.buildReader(fileProjection, fileSchema, partition))
+                        GenericParquetReaders.buildReader(
+                            fileProjection, fileSchema, partition, properties))
                 .split(task.start(), task.length())
                 .filter(task.residual());
 
@@ -151,15 +168,18 @@ class GenericReader implements Serializable {
 
   private class CombinedTaskIterable extends CloseableGroup implements CloseableIterable<Record> {
     private final CombinedScanTask task;
+    private final Map<String, String> properties;
 
-    private CombinedTaskIterable(CombinedScanTask task) {
+    private CombinedTaskIterable(CombinedScanTask task, Map<String, String> properties) {
       this.task = task;
+      this.properties = properties;
     }
 
     @Override
     public CloseableIterator<Record> iterator() {
       CloseableIterator<Record> iter =
-          CloseableIterable.concat(Iterables.transform(task.files(), GenericReader.this::open))
+          CloseableIterable.concat(
+                  Iterables.transform(task.files(), fileScanTask -> open(fileScanTask, properties)))
               .iterator();
       addCloseable(iter);
       return iter;

@@ -47,6 +47,7 @@ import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.BinaryUtil;
+import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
@@ -86,8 +87,25 @@ public class ParquetUtil {
     return footerMetrics(metadata, fieldMetrics, metricsConfig, null);
   }
 
+  public static Metrics footerMetrics(
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig,
+      NameMapping nameMapping) {
+    return footerMetrics(null, metadata, fieldMetrics, metricsConfig, nameMapping);
+  }
+
+  public static Metrics footerMetrics(
+      Schema tableSchema,
+      ParquetMetadata metadata,
+      Stream<FieldMetrics<?>> fieldMetrics,
+      MetricsConfig metricsConfig) {
+    return footerMetrics(tableSchema, metadata, fieldMetrics, metricsConfig, null);
+  }
+
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
   public static Metrics footerMetrics(
+      Schema tableSchema,
       ParquetMetadata metadata,
       Stream<FieldMetrics<?>> fieldMetrics,
       MetricsConfig metricsConfig,
@@ -104,7 +122,10 @@ public class ParquetUtil {
 
     // ignore metrics for fields we failed to determine reliable IDs
     MessageType parquetTypeWithIds = getParquetTypeWithIds(metadata, nameMapping);
-    Schema fileSchema = ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
+
+    // When tableSchema is not known, we'll derive fileSchema from parquet schema.
+    Schema fileSchema =
+        tableSchema != null ? tableSchema : ParquetSchemaUtil.convertAndPrune(parquetTypeWithIds);
 
     Map<Integer, FieldMetrics<?>> fieldMetricsMap =
         fieldMetrics.collect(Collectors.toMap(FieldMetrics::id, Function.identity()));
@@ -114,13 +135,33 @@ public class ParquetUtil {
       rowCount += block.getRowCount();
       for (ColumnChunkMetaData column : block.getColumns()) {
 
-        Integer fieldId = fileSchema.aliasToId(column.getPath().toDotString());
-        if (fieldId == null) {
+        org.apache.parquet.schema.Type columnType =
+            parquetTypeWithIds.getType(column.getPath().toArray());
+        if (columnType.getId() == null
+            || fileSchema.findField(columnType.getId().intValue()) == null) {
+          Integer fieldId =
+              GeoParquetUtil.getFieldIdOfNestedListGeometry(column, parquetTypeWithIds, fileSchema);
+          if (fieldId != null) {
+            // column is inside a geometry field, we'll accumulate statistics for geometry field
+            // represented by nested lists.
+            GeoParquetUtil.updateStatisticsForNestedListGeometry(
+                column,
+                fileSchema,
+                fieldId,
+                metricsConfig,
+                columnSizes,
+                valueCounts,
+                nullValueCounts,
+                missingStats);
+          }
           // fileSchema may contain a subset of columns present in the file
-          // as we prune columns we could not assign ids
+          // as we prune columns we could not assign ids, or column has been dropped due to schema
+          // evolution.
+          // We'll simply ignore this column in such cases.
           continue;
         }
 
+        int fieldId = columnType.getId().intValue();
         increment(columnSizes, fieldId, column.getTotalSize());
 
         MetricsMode metricsMode = MetricsUtil.metricsMode(fileSchema, metricsConfig, fieldId);
@@ -129,7 +170,7 @@ public class ParquetUtil {
         }
         increment(valueCounts, fieldId, column.getValueCount());
 
-        Statistics stats = column.getStatistics();
+        Statistics<?> stats = column.getStatistics();
         if (stats == null) {
           missingStats.add(fieldId);
         } else if (!stats.isEmpty()) {
@@ -199,6 +240,19 @@ public class ParquetUtil {
                 } else if (metrics.upperBound() instanceof Double) {
                   lowerBounds.put(fieldId, Literal.of((Double) metrics.lowerBound()));
                   upperBounds.put(fieldId, Literal.of((Double) metrics.upperBound()));
+                } else if (metrics.upperBound() instanceof Pair) {
+                  Pair<?, ?> upperBound = (Pair<?, ?>) metrics.upperBound();
+                  Pair<?, ?> lowerBound = (Pair<?, ?>) metrics.lowerBound();
+                  double xMin = (Double) lowerBound.first();
+                  double yMin = (Double) lowerBound.second();
+                  double xMax = (Double) upperBound.first();
+                  double yMax = (Double) upperBound.second();
+                  lowerBounds.put(
+                      fieldId,
+                      Literal.ofGeometryBound(org.apache.iceberg.expressions.Pair.of(xMin, yMin)));
+                  upperBounds.put(
+                      fieldId,
+                      Literal.ofGeometryBound(org.apache.iceberg.expressions.Pair.of(xMax, yMax)));
                 } else {
                   throw new UnsupportedOperationException(
                       "Expected only float or double column metrics");
@@ -338,9 +392,11 @@ public class ParquetUtil {
   private static Map<Integer, ByteBuffer> toBufferMap(Schema schema, Map<Integer, Literal<?>> map) {
     Map<Integer, ByteBuffer> bufferMap = Maps.newHashMap();
     for (Map.Entry<Integer, Literal<?>> entry : map.entrySet()) {
-      bufferMap.put(
-          entry.getKey(),
-          Conversions.toByteBuffer(schema.findType(entry.getKey()), entry.getValue().value()));
+      Type type = schema.findType(entry.getKey());
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        type = Types.GeometryBoundType.get();
+      }
+      bufferMap.put(entry.getKey(), Conversions.toByteBuffer(type, entry.getValue().value()));
     }
     return bufferMap;
   }

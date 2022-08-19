@@ -115,7 +115,8 @@ class ParquetReadSupport<T> extends ReadSupport<T> {
     // renaming the file's schema, convert the expected schema to Parquet. This relies on writing
     // files with the correct schema.
     // TODO: this breaks when columns are reordered.
-    MessageType readSchema = ParquetSchemaUtil.convert(expectedSchema, fileMessageType.getName());
+    MessageType readSchema =
+        ParquetSchemaUtil.convert(expectedSchema, fileMessageType.getName(), configuration);
     return wrapped.prepareForRead(configuration, fileMetadata, readSchema, readContext);
   }
 

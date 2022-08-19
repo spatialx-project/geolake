@@ -100,6 +100,9 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
     }
   }
 
+  private IntIterator definitionLevels = null;
+  private IntIterator repetitionLevels = null;
+
   private PageIterator(ColumnDescriptor desc, String writerVersion) {
     super(desc, writerVersion);
   }
@@ -189,6 +192,15 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
     return null;
   }
 
+  public void skipNext() {
+    advance();
+    try {
+      values.skip();
+    } catch (RuntimeException e) {
+      throw handleRuntimeException(e);
+    }
+  }
+
   private void advance() {
     if (triplesRead < triplesCount) {
       this.currentDL = definitionLevels.nextInt();
@@ -264,6 +276,22 @@ abstract class PageIterator<T> extends BasePageIterator implements TripleIterato
       // previous reader can only be set if reading sequentially
       ((RequiresPreviousReader) values).setPreviousReader(previousReader);
     }
+  }
+
+  @Override
+  protected void initRepetitionLevelsReader(
+      DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in, int triplesCount)
+      throws IOException {
+    ValuesReader rlReader =
+        dataPageV1.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
+    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
+    rlReader.initFromPage(triplesCount, in);
+  }
+
+  @Override
+  protected void initRepetitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor descriptor) {
+    this.repetitionLevels =
+        newRLEIterator(desc.getMaxRepetitionLevel(), dataPageV2.getRepetitionLevels());
   }
 
   @Override
