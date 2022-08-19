@@ -26,7 +26,6 @@ import org.apache.parquet.bytes.BytesUtils;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.Encoding;
-import org.apache.parquet.column.ValuesType;
 import org.apache.parquet.column.page.DataPage;
 import org.apache.parquet.column.page.DataPageV1;
 import org.apache.parquet.column.page.DataPageV2;
@@ -54,8 +53,6 @@ public abstract class BasePageIterator {
   protected DataPage page = null;
   protected int triplesCount = 0;
   protected Encoding valueEncoding = null;
-  protected IntIterator definitionLevels = null;
-  protected IntIterator repetitionLevels = null;
   protected ValuesReader values = null;
 
   protected BasePageIterator(ColumnDescriptor descriptor, String writerVersion) {
@@ -67,12 +64,18 @@ public abstract class BasePageIterator {
     this.page = null;
     this.triplesCount = 0;
     this.triplesRead = 0;
-    this.repetitionLevels = null;
     this.hasNext = false;
   }
 
   protected abstract void initDataReader(
       Encoding dataEncoding, ByteBufferInputStream in, int valueCount);
+
+  protected abstract void initRepetitionLevelsReader(
+      DataPageV1 dataPageV1, ColumnDescriptor descriptor, ByteBufferInputStream in, int count)
+      throws IOException;
+
+  protected abstract void initRepetitionLevelsReader(
+      DataPageV2 dataPageV2, ColumnDescriptor descriptor) throws IOException;
 
   protected abstract void initDefinitionLevelsReader(
       DataPageV1 dataPageV1, ColumnDescriptor descriptor, ByteBufferInputStream in, int count)
@@ -112,15 +115,12 @@ public abstract class BasePageIterator {
 
   protected void initFromPage(DataPageV1 initPage) {
     this.triplesCount = initPage.getValueCount();
-    ValuesReader rlReader =
-        initPage.getRlEncoding().getValuesReader(desc, ValuesType.REPETITION_LEVEL);
-    this.repetitionLevels = new ValuesReaderIntIterator(rlReader);
     try {
       BytesInput bytes = initPage.getBytes();
+      ByteBufferInputStream in = bytes.toInputStream();
       LOG.debug("page size {} bytes and {} records", bytes.size(), triplesCount);
       LOG.debug("reading repetition levels at 0");
-      ByteBufferInputStream in = bytes.toInputStream();
-      rlReader.initFromPage(triplesCount, in);
+      initRepetitionLevelsReader(initPage, desc, in, triplesCount);
       LOG.debug("reading definition levels at {}", in.position());
       initDefinitionLevelsReader(initPage, desc, in, triplesCount);
       LOG.debug("reading data at {}", in.position());
@@ -132,9 +132,8 @@ public abstract class BasePageIterator {
 
   protected void initFromPage(DataPageV2 initPage) {
     this.triplesCount = initPage.getValueCount();
-    this.repetitionLevels =
-        newRLEIterator(desc.getMaxRepetitionLevel(), initPage.getRepetitionLevels());
     try {
+      initRepetitionLevelsReader(initPage, desc);
       initDefinitionLevelsReader(initPage, desc);
       LOG.debug("page data size {} bytes and {} records", initPage.getData().size(), triplesCount);
       initDataReader(initPage.getDataEncoding(), initPage.getData().toInputStream(), triplesCount);

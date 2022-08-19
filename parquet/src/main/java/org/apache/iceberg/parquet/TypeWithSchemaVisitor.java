@@ -144,8 +144,19 @@ public class TypeWithSchemaVisitor<T> {
         }
       }
 
-      Types.StructType struct = iType != null ? iType.asStructType() : null;
-      return visitor.struct(struct, group, visitFields(struct, group, visitor));
+      if (iType != null) {
+        if (iType.isStructType()) {
+          Types.StructType struct = iType.asStructType();
+          return visitor.struct(struct, group, visitFields(struct, group, visitor));
+        } else {
+          // Parquet type is struct while iceberg type is primitive, it could be a geometry type
+          // persisted as
+          org.apache.iceberg.types.Type.PrimitiveType primitive = iType.asPrimitiveType();
+          return visitor.struct(primitive, group);
+        }
+      } else {
+        return visitor.struct(null, group, visitFields(null, group, visitor));
+      }
     }
   }
 
@@ -206,6 +217,10 @@ public class TypeWithSchemaVisitor<T> {
   }
 
   public T struct(Types.StructType iStruct, GroupType struct, List<T> fields) {
+    return null;
+  }
+
+  public T struct(org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
     return null;
   }
 
