@@ -156,6 +156,12 @@ public abstract class ColumnIterator<T> extends BaseColumnIterator implements Tr
     return pageIterator.nextNull();
   }
 
+  public void skipNext() {
+    this.triplesRead += 1;
+    advance();
+    pageIterator.skipNext();
+  }
+
   @Override
   protected BasePageIterator pageIterator() {
     return pageIterator;

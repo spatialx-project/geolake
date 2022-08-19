@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 import java.util.function.Function;
@@ -53,7 +54,11 @@ class ParquetConversions {
         return (Literal<T>) Literal.of((CharSequence) stringConversion.apply(value));
       case UUID:
         Function<Object, Object> uuidConversion = converterFromParquet(parquetType);
-        return (Literal<T>) Literal.of((UUID) uuidConversion.apply(value));
+        ByteBuffer byteBuffer = (ByteBuffer) uuidConversion.apply(value);
+        byteBuffer.order(ByteOrder.BIG_ENDIAN);
+        long mostSignificantBits = byteBuffer.getLong();
+        long leastSignificantBits = byteBuffer.getLong();
+        return (Literal<T>) Literal.of(new UUID(mostSignificantBits, leastSignificantBits));
       case FIXED:
       case BINARY:
         Function<Object, Object> binaryConversion = converterFromParquet(parquetType);
