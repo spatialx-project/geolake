@@ -51,6 +51,7 @@ import org.apache.iceberg.types.Types.StructType;
 public class PartitionSpec implements Serializable {
   // IDs for partition fields start at 1000
   private static final int PARTITION_DATA_ID_START = 1000;
+  private static final int DEFAULT_XZ_RESOLUTION = 12;
 
   private final Schema schema;
 
@@ -523,6 +524,25 @@ public class PartitionSpec implements Serializable {
 
     public Builder alwaysNull(String sourceName) {
       return alwaysNull(sourceName, sourceName + "_null");
+    }
+
+    public Builder xz2(String sourceName, int resolution, String targetName) {
+      Types.NestedField sourceColumn = findSourceColumn(sourceName);
+      checkAndAddPartitionName(
+          targetName, sourceColumn.fieldId()); // can duplicate a source column name
+      fields.add(
+          new PartitionField(
+              sourceColumn.fieldId(), nextFieldId(), targetName, Transforms.xz2(resolution)));
+      return this;
+    }
+
+    public Builder xz2(String sourceName) {
+      return xz2(sourceName, DEFAULT_XZ_RESOLUTION);
+    }
+
+    public Builder xz2(String sourceName, int resolution) {
+      String targetName = sourceName + "_xz2_" + resolution;
+      return xz2(sourceName, resolution, targetName);
     }
 
     // add a partition field with an auto-increment partition field id starting from
