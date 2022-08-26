@@ -1,0 +1,42 @@
+# This template uses jdk8 and maven 3.6.3 for verifying and deploying images
+image: hub-bxcl-registry-vpc.cn-beijing.cr.aliyuncs.com/haochezhu/java:v1.0.0
+
+stages:
+  - checking
+  - testing
+  - building
+
+before_script:
+  - GRADLE_USER_HOME="$(pwd)/.gradle"
+  - export GRADLE_USER_HOME
+  - if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then type -P curl && echo "Found curl" || (apt update && apt install -y curl); fi
+
+# Cache downloaded dependencies and plugins between builds.
+# To keep cache across branches add 'key: "$CI_JOB_NAME"'
+cache:
+  paths:
+    - .gradle
+    - gradle/wrapper/gradle-wrapper.jar
+    - build
+
+# ref: https://github.com/apache/iceberg/blob/master/.github/workflows/java-ci.yml
+core_style:
+  stage: checking
+  script:
+    - './gradlew spotlessApply'
+  only:
+    - merge_requests
+
+test:
+  stage: testing
+  script:
+    - './gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc --no-parallel'
+  only:
+    - merge_requests
+
+build:
+  stage: building
+  script:
+    - './gradlew -DflinkVersions= -DsparkVersions=3.3 -DhiveVersions= build -x test -x javadoc -x integrationTest --no-parallel'
+  only:
+    - merge_requests
