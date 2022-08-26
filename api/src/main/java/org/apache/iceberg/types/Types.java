@@ -51,6 +51,7 @@ public class Types {
           .put(StringType.get().toString(), StringType.get())
           .put(UUIDType.get().toString(), UUIDType.get())
           .put(BinaryType.get().toString(), BinaryType.get())
+          .put(GeometryType.get().toString(), GeometryType.get())
           .buildOrThrow();
 
   private static final Pattern FIXED = Pattern.compile("fixed\\[(\\d+)\\]");
@@ -333,6 +334,42 @@ public class Types {
     @Override
     public int hashCode() {
       return Objects.hash(FixedType.class, length);
+    }
+  }
+
+  public static class GeometryType extends PrimitiveType {
+    private static final GeometryType INSTANCE = new GeometryType();
+
+    public static GeometryType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY;
+    }
+
+    @Override
+    public String toString() {
+      return "geometry";
+    }
+  }
+
+  public static class GeometryBoundType extends PrimitiveType {
+    private static final GeometryBoundType INSTANCE = new GeometryBoundType();
+
+    public static GeometryBoundType get() {
+      return INSTANCE;
+    }
+
+    @Override
+    public TypeID typeId() {
+      return TypeID.GEOMETRY_BOUND;
+    }
+
+    @Override
+    public String toString() {
+      return "geometry_bound";
     }
   }
 
