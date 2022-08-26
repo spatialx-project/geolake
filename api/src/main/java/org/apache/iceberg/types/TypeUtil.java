@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.types;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -37,6 +38,12 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableSet;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.util.ByteBuffers;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
+import org.locationtech.jts.io.WKBWriter;
+import org.locationtech.jts.io.WKTReader;
 
 public class TypeUtil {
 
@@ -689,6 +696,36 @@ public class TypeUtil {
         throw new IllegalStateException(
             "Could not find required length for precision " + precision);
       }
+    }
+  }
+
+  public static class GeometryUtils {
+    public static Geometry byteBuffer2geometry(ByteBuffer buffer) {
+      try {
+        return new WKBReader().read(ByteBuffers.toByteArray(buffer));
+      } catch (ParseException parseException) {
+        throw new IllegalArgumentException("Failed to convert bytes to JTS geometry");
+      }
+    }
+
+    public static Geometry wkt2geometry(String wkt) {
+      try {
+        WKTReader wktReader = new WKTReader();
+        return wktReader.read(wkt);
+      } catch (ParseException e) {
+        throw new IllegalArgumentException("Failed to parse wkt to JTS geometry");
+      }
+    }
+
+    public static ByteBuffer geometry2byteBuffer(Geometry geom) {
+      WKBWriter wkbWriter = new WKBWriter();
+      byte[] bytes = wkbWriter.write(geom);
+      return ByteBuffer.wrap(bytes);
+    }
+
+    public static ByteBuffer wkt2byteBuffer(String wkt) {
+      Geometry geom = wkt2geometry(wkt);
+      return geometry2byteBuffer(geom);
     }
   }
 }
