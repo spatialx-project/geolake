@@ -65,4 +65,12 @@ public abstract class BoundPredicate<T> extends Predicate<T, BoundTerm<T>>
   public BoundSetPredicate<T> asSetPredicate() {
     throw new IllegalStateException("Not a set predicate: " + this);
   }
+
+  public boolean isRangePredicate() {
+    return false;
+  }
+
+  public BoundRangePredicate<T> asRangePredicate() {
+    throw new IllegalStateException("Not a range predicate: " + this);
+  }
 }
