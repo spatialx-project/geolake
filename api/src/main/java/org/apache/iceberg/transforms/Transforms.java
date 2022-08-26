@@ -77,6 +77,8 @@ public class Transforms {
         return (Transform<?, ?>) Truncate.get(type, parsedWidth);
       } else if (name.equals("bucket")) {
         return (Transform<?, ?>) Bucket.get(type, parsedWidth);
+      } else if (name.equals("xz2")) {
+        return ExtendedZCurve.get(type, parsedWidth);
       }
     }
 
@@ -301,5 +303,15 @@ public class Transforms {
    */
   public static <T> Transform<T, Void> alwaysNull() {
     return VoidTransform.get();
+  }
+
+  /**
+   * Returns a xz-ordering {@link Transform} for geometry(in bytebuffer type).
+   *
+   * @param <T> Java type accepted by the transform.
+   * @return a transform that always produces null (the void transform).
+   */
+  public static <T> Transform<T, Long> xz2(int resolution) {
+    return new ExtendedZCurve(resolution);
   }
 }
