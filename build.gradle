@@ -23,6 +23,7 @@ import java.util.regex.Pattern
 
 buildscript {
   repositories {
+    maven { url 'https://maven.aliyun.com/repository/public' }
     gradlePluginPortal()
   }
   dependencies {
@@ -91,6 +92,7 @@ allprojects {
   group = "org.apache.iceberg"
   version = projectVersion
   repositories {
+    maven { url 'https://maven.aliyun.com/repository/public' }
     mavenCentral()
     mavenLocal()
   }
