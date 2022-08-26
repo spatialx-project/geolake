@@ -21,6 +21,7 @@ package org.apache.iceberg.types;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.nio.ByteBuffer;
 import java.util.Set;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.Schema;
@@ -30,6 +31,7 @@ import org.apache.iceberg.types.Types.IntegerType;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestTypeUtil {
   @Test
@@ -644,5 +646,38 @@ public class TestTypeUtil {
                 required(1, "FIELD1", Types.IntegerType.get()),
                 required(2, "FIELD2", Types.IntegerType.get())));
     Assert.assertEquals(expectedSchema.asStruct(), actualSchema.asStruct());
+  }
+
+  @Test
+  public void testGeometry() {
+    String wkt =
+        "POLYGON ((113.582738 23.208284, 113.584522 23.207674, 113.583289 23.203502, 113.582738 23.208284))";
+    Geometry guangzhou = TypeUtil.GeometryUtils.wkt2geometry(wkt);
+    ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer(guangzhou);
+    Geometry convertedGeom = TypeUtil.GeometryUtils.byteBuffer2geometry(byteBuffer);
+    Assert.assertNotNull(convertedGeom);
+    Assert.assertEquals(convertedGeom.toString(), wkt);
+  }
+
+  @Test
+  public void testGeometryWithError() {
+    String wkt =
+        "POLY ((113.582738 23.208284, 113.584522 23.207674, 113.583289 23.203502, 113.582738 23.208284))";
+    Assert.assertThrows(
+        "Cannot read invalid wkt",
+        IllegalArgumentException.class,
+        () -> TypeUtil.GeometryUtils.wkt2geometry(wkt));
+
+    ByteBuffer byteBuffer = ByteBuffer.allocate(8);
+    Assert.assertThrows(
+        "Cannot convert empty bytebuffer to JTS geometry",
+        IllegalArgumentException.class,
+        () -> TypeUtil.GeometryUtils.byteBuffer2geometry(byteBuffer));
+
+    byteBuffer.putInt(123);
+    Assert.assertThrows(
+        "Cannot convert invalid bytebuffer to JTS geometry",
+        IllegalArgumentException.class,
+        () -> TypeUtil.GeometryUtils.byteBuffer2geometry(byteBuffer));
   }
 }
