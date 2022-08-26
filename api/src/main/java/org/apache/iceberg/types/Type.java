@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.expressions.Pair;
 
 public interface Type extends Serializable {
   enum TypeID {
@@ -41,6 +42,8 @@ public interface Type extends Serializable {
     UUID(java.util.UUID.class),
     FIXED(ByteBuffer.class),
     BINARY(ByteBuffer.class),
+    GEOMETRY(ByteBuffer.class),
+    GEOMETRY_BOUND(Pair.class),
     DECIMAL(BigDecimal.class),
     STRUCT(StructLike.class),
     LIST(List.class),
