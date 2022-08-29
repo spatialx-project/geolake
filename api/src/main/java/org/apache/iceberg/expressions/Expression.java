@@ -47,7 +47,10 @@ public interface Expression extends Serializable {
     COUNT,
     COUNT_STAR,
     MAX,
-    MIN;
+    MIN,
+    ST_IN,
+    ST_INTERSECT,
+    ST_CONTAIN;
 
     public static Operation fromString(String operationType) {
       Preconditions.checkArgument(null != operationType, "Invalid operation type: null");
@@ -116,6 +119,12 @@ public interface Expression extends Serializable {
           return Operation.AND;
         case OR:
           return Operation.OR;
+        case ST_INTERSECT:
+          return Operation.ST_INTERSECT;
+        case ST_CONTAIN:
+          return ST_IN;
+        case ST_IN:
+          return ST_CONTAIN;
         default:
           throw new IllegalArgumentException("No left-right flip for operation: " + this);
       }

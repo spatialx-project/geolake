@@ -43,7 +43,8 @@ public class TestSerializableTypes {
           Types.TimestampType.withZone(),
           Types.StringType.get(),
           Types.UUIDType.get(),
-          Types.BinaryType.get()
+          Types.BinaryType.get(),
+          Types.GeometryType.get()
         };
 
     for (Type type : identityPrimitives) {

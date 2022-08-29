@@ -44,6 +44,7 @@ public class TestReadabilityChecks {
         Types.FixedType.ofLength(3),
         Types.FixedType.ofLength(4),
         Types.BinaryType.get(),
+        Types.GeometryType.get(),
         Types.DecimalType.of(9, 2),
         Types.DecimalType.of(11, 2),
         Types.DecimalType.of(9, 3)

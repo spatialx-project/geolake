@@ -162,6 +162,12 @@ public class BoundLiteralPredicate<T> extends BoundPredicate<T> {
         return term() + " in { " + literal + " }";
       case NOT_IN:
         return term() + " not in { " + literal + " }";
+      case ST_IN:
+        return term() + " within { " + literal + " } ";
+      case ST_CONTAIN:
+        return term() + " contain { " + literal + " } ";
+      case ST_INTERSECT:
+        return term() + " intersect { " + literal + " } ";
       default:
         return "Invalid literal predicate: operation = " + op();
     }

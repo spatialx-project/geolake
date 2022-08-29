@@ -29,10 +29,12 @@ import java.util.stream.IntStream;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestExpressionUtil {
   private static final Schema SCHEMA =
@@ -44,7 +46,8 @@ public class TestExpressionUtil {
           Types.NestedField.required(5, "date", Types.DateType.get()),
           Types.NestedField.required(6, "time", Types.DateType.get()),
           Types.NestedField.optional(7, "data", Types.StringType.get()),
-          Types.NestedField.optional(8, "measurement", Types.DoubleType.get()));
+          Types.NestedField.optional(8, "measurement", Types.DoubleType.get()),
+          Types.NestedField.optional(9, "geom", Types.GeometryType.get()));
 
   private static final Types.StructType STRUCT = SCHEMA.asStruct();
 
@@ -597,6 +600,38 @@ public class TestExpressionUtil {
         ExpressionUtil.toSanitizedString(Expressions.equal("test", nextWeek)));
   }
 
+  public void testSanitizeGeometry() {
+    for (String query :
+        Lists.newArrayList(
+            "POLYGON ((127.332638 49.741565, 127.341562 49.746897, 127.344317 49.753098, 127.332638 49.741565))",
+            "POLYGON ((113.582738 23.208284, 113.584522 23.207674, 113.583289 23.203502, 113.582738 23.208284))",
+            "POLYGON ((82.55115 36.778162, 82.607718 36.720354, 82.632968 36.690291, 82.636987 36.682906, 82.55115 36.778162))")) {
+      Geometry bound = TypeUtil.GeometryUtils.wkt2geometry(query);
+      assertEquals(
+          Expressions.stContain("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stContain("geom", bound)));
+      assertEquals(
+          Expressions.stIn("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stIn("geom", bound)));
+      assertEquals(
+          Expressions.stIntersect("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stIntersect("geom", bound)));
+
+      Assert.assertEquals(
+          "Sanitized geometry should be identical except for descriptive literal",
+          "geom CONTAIN (geometry)",
+          ExpressionUtil.toSanitizedString(Expressions.stContain("geom", bound)));
+      Assert.assertEquals(
+          "Sanitized geometry should be identical except for descriptive literal",
+          "geom INTERSECT (geometry)",
+          ExpressionUtil.toSanitizedString(Expressions.stIntersect("geom", bound)));
+      Assert.assertEquals(
+          "Sanitized geometry should be identical except for descriptive literal",
+          "geom WITHIN (geometry)",
+          ExpressionUtil.toSanitizedString(Expressions.stIn("geom", bound)));
+    }
+  }
+
   @Test
   public void testSanitizeStringFallback() {
     Pattern filterPattern = Pattern.compile("^test = \\(hash-[0-9a-fA-F]{8}\\)$");
@@ -659,6 +694,8 @@ public class TestExpressionUtil {
           Expressions.month("ts"),
           Expressions.day("ts"),
           Expressions.hour("ts"),
+          Expressions.xz2("geom"),
+          Expressions.xz2("geom", 15)
         };
 
     for (UnboundTerm<?> term : terms) {
