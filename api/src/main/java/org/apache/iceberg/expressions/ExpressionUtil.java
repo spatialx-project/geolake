@@ -155,6 +155,9 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
+        case ST_IN:
+        case ST_INTERSECT:
+        case ST_CONTAIN:
           return new UnboundPredicate<>(pred.op(), pred.term(), (T) sanitize(pred.literal()));
         case IN:
         case NOT_IN:
@@ -251,6 +254,12 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal());
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal());
+        case ST_IN:
+          return term + " WITHIN " + sanitize(pred.literal());
+        case ST_INTERSECT:
+          return term + " INTERSECT " + sanitize(pred.literal());
+        case ST_CONTAIN:
+          return term + " CONTAIN " + sanitize(pred.literal());
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -258,6 +267,7 @@ public class ExpressionUtil {
     }
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static String sanitize(Literal<?> literal) {
     if (literal instanceof Literals.StringLiteral) {
       CharSequence value = ((Literals.StringLiteral) literal).value();
@@ -284,6 +294,10 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.GeometryLiteral) {
+      return "(geometry)";
+    } else if (literal instanceof Literals.GeometryBoundLiteral) {
+      return "(geometry bound)";
     } else {
       // for uuid, decimal, fixed, and binary, match the string result
       return sanitizeString(literal.value().toString());

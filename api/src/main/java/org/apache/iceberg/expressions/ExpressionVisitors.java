@@ -21,6 +21,7 @@ package org.apache.iceberg.expressions;
 import java.util.Set;
 import java.util.function.Supplier;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.transforms.geometry.IndexRangeSet;
 
 /** Utils for traversing {@link Expression expressions}. */
 public class ExpressionVisitors {
@@ -118,6 +119,34 @@ public class ExpressionVisitors {
           "notStartsWith expression is not supported by the visitor");
     }
 
+    public <T> R stIn(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException("stIn expression is not supported by the visitor");
+    }
+
+    public <T> R stIn(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException("stIn expression is not supported by the visitor");
+    }
+
+    public <T> R stIntersect(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "stIntersect expression is not supported by the visitor");
+    }
+
+    public <T> R stIntersect(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException(
+          "stIntersect expression is not supported by the visitor");
+    }
+
+    public <T> R stContain(BoundReference<T> ref, Literal<T> lit) {
+      throw new UnsupportedOperationException(
+          "stContain expression is not supported by the visitor");
+    }
+
+    public <T> R stContain(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException(
+          "stContain expression is not supported by the visitor");
+    }
+
     /**
      * Handle a non-reference value in this visitor.
      *
@@ -158,6 +187,12 @@ public class ExpressionVisitors {
             return startsWith((BoundReference<T>) pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith((BoundReference<T>) pred.term(), literalPred.literal());
+          case ST_IN:
+            return stIn((BoundReference<T>) pred.term(), literalPred.literal());
+          case ST_INTERSECT:
+            return stIntersect((BoundReference<T>) pred.term(), literalPred.literal());
+          case ST_CONTAIN:
+            return stContain((BoundReference<T>) pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -187,6 +222,19 @@ public class ExpressionVisitors {
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
+        }
+      } else if (pred.isRangePredicate()) {
+        BoundRangePredicate<T> rangePred = pred.asRangePredicate();
+        switch (pred.op()) {
+          case ST_IN:
+            return stIn((BoundReference<T>) pred.term(), rangePred.getRangeSet());
+          case ST_INTERSECT:
+            return stIntersect((BoundReference<T>) pred.term(), rangePred.getRangeSet());
+          case ST_CONTAIN:
+            return stContain((BoundReference<T>) pred.term(), rangePred.getRangeSet());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundRangePredicate: " + pred.op());
         }
       }
 
@@ -258,6 +306,30 @@ public class ExpressionVisitors {
       throw new UnsupportedOperationException("Unsupported operation.");
     }
 
+    public <T> R stIn(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stIn(Bound<T> expr, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stIntersect(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stIntersect(Bound<T> expr, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stContain(Bound<T> expr, Literal<T> lit) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
+    public <T> R stContain(Bound<T> expr, IndexRangeSet rangeSet) {
+      throw new UnsupportedOperationException("Unsupported operation.");
+    }
+
     @Override
     public <T> R predicate(BoundPredicate<T> pred) {
       if (pred.isLiteralPredicate()) {
@@ -279,6 +351,12 @@ public class ExpressionVisitors {
             return startsWith(pred.term(), literalPred.literal());
           case NOT_STARTS_WITH:
             return notStartsWith(pred.term(), literalPred.literal());
+          case ST_IN:
+            return stIn(pred.term(), literalPred.literal());
+          case ST_INTERSECT:
+            return stIntersect(pred.term(), literalPred.literal());
+          case ST_CONTAIN:
+            return stContain(pred.term(), literalPred.literal());
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundLiteralPredicate: " + pred.op());
@@ -308,6 +386,19 @@ public class ExpressionVisitors {
           default:
             throw new IllegalStateException(
                 "Invalid operation for BoundSetPredicate: " + pred.op());
+        }
+      } else if (pred.isRangePredicate()) {
+        BoundRangePredicate<T> rangePred = pred.asRangePredicate();
+        switch (pred.op()) {
+          case ST_IN:
+            return stIn(pred.term(), rangePred.getRangeSet());
+          case ST_INTERSECT:
+            return stIntersect(pred.term(), rangePred.getRangeSet());
+          case ST_CONTAIN:
+            return stContain(pred.term(), rangePred.getRangeSet());
+          default:
+            throw new IllegalStateException(
+                "Invalid operation for BoundRangePredicate: " + pred.op());
         }
       }
 

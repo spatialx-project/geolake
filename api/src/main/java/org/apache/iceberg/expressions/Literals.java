@@ -38,9 +38,12 @@ import org.apache.iceberg.relocated.com.google.common.io.BaseEncoding;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.TypeUtil.GeometryUtils;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.ByteBuffers;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
 
 class Literals {
   private Literals() {}
@@ -80,8 +83,9 @@ class Literals {
       return (Literal<T>) new Literals.BinaryLiteral((ByteBuffer) value);
     } else if (value instanceof BigDecimal) {
       return (Literal<T>) new Literals.DecimalLiteral((BigDecimal) value);
+    } else if (value instanceof Geometry) {
+      return (Literal<T>) new Literals.GeometryLiteral((Geometry) value);
     }
-
     throw new IllegalArgumentException(
         String.format(
             "Cannot create expression literal from %s: %s", value.getClass().getName(), value));
@@ -587,6 +591,8 @@ class Literals {
           return null;
         case BINARY:
           return (Literal<T>) new BinaryLiteral(value());
+        case GEOMETRY:
+          return (Literal<T>) new GeometryLiteral(GeometryUtils.byteBuffer2geometry(value()));
         default:
           return null;
       }
@@ -633,6 +639,8 @@ class Literals {
           return null;
         case BINARY:
           return (Literal<T>) this;
+        case GEOMETRY:
+          return (Literal<T>) new GeometryLiteral(GeometryUtils.byteBuffer2geometry(value()));
         default:
           return null;
       }
@@ -656,6 +664,67 @@ class Literals {
     public String toString() {
       byte[] bytes = ByteBuffers.toByteArray(value());
       return "X'" + BaseEncoding.base16().encode(bytes) + "'";
+    }
+  }
+
+  static class GeometryLiteral extends BaseLiteral<Geometry> {
+    GeometryLiteral(Geometry value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer(value());
+      switch (type.typeId()) {
+        case FIXED:
+          Types.FixedType fixed = (Types.FixedType) type;
+          if (byteBuffer.remaining() == fixed.length()) {
+            return (Literal<T>) new FixedLiteral(byteBuffer);
+          }
+          return null;
+        case BINARY:
+          return (Literal<T>) new BinaryLiteral(byteBuffer);
+        case GEOMETRY:
+          return (Literal<T>) this;
+        default:
+          return null;
+      }
+    }
+
+    @Override
+    public Comparator<Geometry> comparator() {
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.GEOMETRY;
+    }
+  }
+
+  static class GeometryBoundLiteral extends BaseLiteral<Pair<?, ?>> {
+    GeometryBoundLiteral(Pair<?, ?> value) {
+      super(value);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Literal<T> to(Type type) {
+      if (type.typeId() == Type.TypeID.GEOMETRY_BOUND) {
+        return (Literal<T>) this;
+      }
+      return null;
+    }
+
+    @Override
+    public Comparator<Pair<?, ?>> comparator() {
+      return null;
+    }
+
+    @Override
+    protected Type.TypeID typeId() {
+      return Type.TypeID.GEOMETRY_BOUND;
     }
   }
 }
