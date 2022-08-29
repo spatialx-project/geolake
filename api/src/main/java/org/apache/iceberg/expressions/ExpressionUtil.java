@@ -182,6 +182,11 @@ public class ExpressionUtil {
         case NOT_STARTS_WITH:
           return new UnboundPredicate<>(
               pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
+        case ST_COVEREDBY:
+        case ST_INTERSECTS:
+        case ST_COVERS:
+          return new UnboundPredicate<>(
+              pred.op(), pred.term(), (T) sanitize(pred.literal(), now, today));
         case IN:
         case NOT_IN:
           Iterable<String> iter =
@@ -291,6 +296,12 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
+        case ST_IN:
+          return term + " WITHIN " + sanitize(pred.literal(), nowMicros, today);
+        case ST_INTERSECT:
+          return term + " INTERSECT " + sanitize(pred.literal(), nowMicros, today);
+        case ST_CONTAIN:
+          return term + " CONTAIN " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
               "Cannot sanitize unsupported predicate type: " + pred.op());
@@ -315,6 +326,7 @@ public class ExpressionUtil {
     return sanitizedValues;
   }
 
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
   private static String sanitize(Literal<?> literal, long now, int today) {
     if (literal instanceof Literals.StringLiteral) {
       return sanitizeString(((Literals.StringLiteral) literal).value(), now, today);
@@ -332,6 +344,10 @@ public class ExpressionUtil {
       return sanitizeNumber(((Literals.FloatLiteral) literal).value(), "float");
     } else if (literal instanceof Literals.DoubleLiteral) {
       return sanitizeNumber(((Literals.DoubleLiteral) literal).value(), "float");
+    } else if (literal instanceof Literals.GeometryLiteral) {
+      return "(geometry)";
+    } else if (literal instanceof Literals.GeometryBoundLiteral) {
+      return "(geometry bound)";
     } else {
       // for uuid, decimal, fixed, and binary, match the string result
       return sanitizeSimpleString(literal.value().toString());

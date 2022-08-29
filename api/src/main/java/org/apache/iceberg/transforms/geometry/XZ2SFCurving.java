@@ -22,6 +22,9 @@ import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class XZ2SFCurving {
   private final int resolution;
@@ -50,16 +53,16 @@ public class XZ2SFCurving {
   }
 
   /**
-   * return a list of interval set
+   * compute a list of interval set given a bounding box(which is usually the MBR if a geometry)
    *
    * @param xMin minimum value on x axis
    * @param yMin minimum value on y axis
    * @param xMax maximum value on x axis
    * @param yMax maximum value on y axis
-   * @param strict whether return the overlapped range set
-   * @return IndexRangeSet
+   * @return list of IndexRangeSet.Interval
+   * @see XZ2SFCurving#ranges(Geometry)
    */
-  public IndexRangeSet ranges(double xMin, double yMin, double xMax, double yMax, boolean strict) {
+  public List<IndexRangeSet.Interval> ranges(double xMin, double yMin, double xMax, double yMax) {
     Bound bound = normalize(new Bound(xMin, yMin, xMax, yMax));
     ArrayDeque<XElement> remaining = new ArrayDeque<>(LevelOneElements);
     remaining.addLast(LevelTerminator);
@@ -73,15 +76,22 @@ public class XZ2SFCurving {
           remaining.addLast(LevelTerminator);
         }
       } else {
-        if (next.isContained(bound)) {
+        if (next.within(bound)) {
           // whole range in the bounding box
           Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, false);
-          intervals.add(new IndexRangeSet.Interval(indexes[0], indexes[1], true));
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.WITHIN));
         } else if (next.overlaps(bound)) {
           Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, true);
-          // add overlapped interval if not in "strict" mode
-          if (!strict) {
-            intervals.add(new IndexRangeSet.Interval(indexes[0], indexes[1], false));
+          if (next.covers(bound)) {
+            intervals.add(
+                new IndexRangeSet.Interval(
+                    indexes[0], indexes[1], IndexRangeSet.IntervalLevel.CONTAINS));
+          } else {
+            intervals.add(
+                new IndexRangeSet.Interval(
+                    indexes[0], indexes[1], IndexRangeSet.IntervalLevel.PARTIAL_INTERSECT));
           }
           remaining.addAll(next.children());
         }
@@ -93,16 +103,100 @@ public class XZ2SFCurving {
         level += 1;
       } else {
         Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, false);
-        if (strict) {
-          if (next.isContained(bound)) {
-            intervals.add(new IndexRangeSet.Interval(indexes[0], indexes[1], true));
-          }
+        if (next.within(bound)) {
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.WITHIN));
+        } else if (next.covers(bound)) {
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.CONTAINS));
         } else {
-          intervals.add(new IndexRangeSet.Interval(indexes[0], indexes[1], false));
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.PARTIAL_INTERSECT));
         }
       }
     }
-    return new IndexRangeSet(intervals);
+    return intervals;
+  }
+
+  private Geometry denorm2geo(XElement quad) {
+    double xMin = quad.xMin * (GeoBound.xMax - GeoBound.xMin) + GeoBound.xMin;
+    double xMax = quad.xExt * (GeoBound.xMax - GeoBound.xMin) + GeoBound.xMin;
+    double yMin = quad.yMin * (GeoBound.yMax - GeoBound.yMin) + GeoBound.yMin;
+    double yMax = quad.yExt * (GeoBound.yMax - GeoBound.yMin) + GeoBound.yMin;
+    Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
+    return new GeometryFactory().toGeometry(envelope);
+  }
+
+  /**
+   * compute a list of interval set given a geometry object. This method is may require more
+   * computing time compared with the ranges(xMin, yMin, xMax, yMax) method, but it gives more
+   * precise results
+   *
+   * @param queryWindow a geometry object
+   * @return list of IndexRangeSet.Interval
+   * @see XZ2SFCurving#ranges(double, double, double, double)
+   */
+  public List<IndexRangeSet.Interval> ranges(Geometry queryWindow) {
+    ArrayDeque<XElement> remaining = new ArrayDeque<>(LevelOneElements);
+    remaining.addLast(LevelTerminator);
+    List<IndexRangeSet.Interval> intervals = Lists.newArrayList();
+    int level = 1;
+    while (!remaining.isEmpty() && level < resolution) {
+      XElement next = remaining.pollFirst();
+      if (next.equals(LevelTerminator)) {
+        if (!remaining.isEmpty()) {
+          level += 1;
+          remaining.addLast(LevelTerminator);
+        }
+      } else {
+        Geometry quad = denorm2geo(next);
+        if (queryWindow.covers(quad)) {
+          // whole range in the bounding box
+          Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, false);
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.WITHIN));
+        } else if (queryWindow.intersects(quad)) {
+          Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, true);
+          if (quad.covers(queryWindow)) {
+            intervals.add(
+                new IndexRangeSet.Interval(
+                    indexes[0], indexes[1], IndexRangeSet.IntervalLevel.CONTAINS));
+          } else {
+            intervals.add(
+                new IndexRangeSet.Interval(
+                    indexes[0], indexes[1], IndexRangeSet.IntervalLevel.PARTIAL_INTERSECT));
+          }
+          remaining.addAll(next.children());
+        }
+      }
+    }
+    while (!remaining.isEmpty()) {
+      XElement next = remaining.pollFirst();
+      if (next.equals(LevelTerminator)) {
+        level += 1;
+      } else {
+        Long[] indexes = sequenceInterval(next.xMin, next.yMin, level, false);
+        Geometry quad = denorm2geo(next);
+        if (queryWindow.covers(quad)) {
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.WITHIN));
+        } else if (quad.covers(queryWindow)) {
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.CONTAINS));
+        } else {
+          intervals.add(
+              new IndexRangeSet.Interval(
+                  indexes[0], indexes[1], IndexRangeSet.IntervalLevel.PARTIAL_INTERSECT));
+        }
+      }
+    }
+    return intervals;
   }
 
   private long index(Bound bound) {
@@ -211,7 +305,8 @@ public class XZ2SFCurving {
         || bound.xMax > GeoBound.xMax
         || bound.yMin < GeoBound.xMin
         || bound.yMax > GeoBound.yMax) {
-      throw new IllegalArgumentException("Invalid bound: " + bound);
+      throw new IllegalArgumentException(
+          "Invalid bound: " + bound + "; the maximum bound is " + GeoBound);
     }
     double xMin = (bound.xMin - GeoBound.xMin) / (GeoBound.xMax - GeoBound.xMin);
     double xMax = (bound.xMax - GeoBound.xMin) / (GeoBound.xMax - GeoBound.xMin);
@@ -246,11 +341,18 @@ public class XZ2SFCurving {
       this.yExt = Math.min(yMax + length, NormalizeBound.yMax);
     }
 
-    public boolean isContained(Bound window) {
+    public boolean within(Bound window) {
       return window.xMin <= xMin
           && window.xMax >= xExt
           && window.yMin <= yMin
           && window.yMax >= yExt;
+    }
+
+    public boolean covers(Bound window) {
+      return window.xMin >= xMin
+          && window.xMax <= xExt
+          && window.yMin >= yMin
+          && window.yMax <= yExt;
     }
 
     public boolean overlaps(Bound window) {
