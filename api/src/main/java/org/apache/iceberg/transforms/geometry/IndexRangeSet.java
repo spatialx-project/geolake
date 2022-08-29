@@ -29,7 +29,16 @@ public class IndexRangeSet {
   public static final String INNER_DELIMITER = ",";
   public static final String OUTER_DELIMITER = ";";
 
-  IndexRangeSet(List<Interval> intervals) {
+  public enum IntervalLevel {
+    // quadrant is in the query window
+    WITHIN,
+    // quadrant contains the query window
+    CONTAINS,
+    // quadrant is partially intersect with the query window
+    PARTIAL_INTERSECT,
+  }
+
+  public IndexRangeSet(List<Interval> intervals) {
     this.intervalSet = mergeIntervals(intervals);
   }
 
@@ -48,11 +57,13 @@ public class IndexRangeSet {
     Interval current = intervals.get(0);
     for (Interval interval : intervals) {
       if (current.getUpper() + 1 >= interval.getLower()) {
+        IntervalLevel newLevel =
+            current.getLevel().equals(interval.getLevel())
+                ? current.getLevel()
+                : IntervalLevel.PARTIAL_INTERSECT;
         current =
             new Interval(
-                current.getLower(),
-                Math.max(current.getUpper(), interval.getUpper()),
-                current.isContained() && interval.isContained());
+                current.getLower(), Math.max(current.getUpper(), interval.getUpper()), newLevel);
       } else {
         mergedIntervals.add(current);
         current = interval;
@@ -85,27 +96,32 @@ public class IndexRangeSet {
    * @return true or false
    */
   public boolean match(long idx) {
-    return matchInterval(idx) != null;
+    return matchInterval(idx, idx) != null;
+  }
+
+  public boolean match(long lower, long upper) {
+    return matchInterval(lower, upper) != null;
   }
 
   /**
    * Find the specific interval which contains the given index, return null if not found
    *
-   * @param idx value of xz index
+   * @param lower min value of xz index
+   * @param upper max value of xz index
    * @return return an Interval if found, otherwise return null
    */
-  public Interval matchInterval(long idx) {
+  public Interval matchInterval(long lower, long upper) {
     int low = 0;
     int high = intervalSet.size() - 1;
     int mid = (low + high) / 2;
     while (low <= high) {
       Interval interval = intervalSet.get(mid);
-      if (interval.match(idx)) {
+      if (interval.match(lower, upper)) {
         return interval;
       }
-      if (idx < interval.getLower()) {
+      if (upper < interval.getLower()) {
         high = mid - 1;
-      } else if (idx > interval.getUpper()) {
+      } else if (lower > interval.getUpper()) {
         low = mid + 1;
       }
       mid = (low + high) / 2;
@@ -119,12 +135,12 @@ public class IndexRangeSet {
   public static class Interval implements Comparable<Interval> {
     private final long lower;
     private final long upper;
-    private final boolean contained;
+    private final IntervalLevel level;
 
-    Interval(long lower, long upper, boolean contained) {
+    Interval(long lower, long upper, IntervalLevel level) {
       this.lower = lower;
       this.upper = upper;
-      this.contained = contained;
+      this.level = level;
     }
 
     /**
@@ -146,12 +162,12 @@ public class IndexRangeSet {
     }
 
     /**
-     * return true if it's contained, false if it's overlapped
+     * the relation between the rectangle(represent by the index) and the query window
      *
      * @return boolean
      */
-    public boolean isContained() {
-      return contained;
+    public IntervalLevel getLevel() {
+      return level;
     }
 
     /**
@@ -164,9 +180,21 @@ public class IndexRangeSet {
       return index >= lower && index <= upper;
     }
 
+    /**
+     * return true if this interval overlapped with the given bounds, false otherwise
+     *
+     * @param lowerBound the smallest xz2 index
+     * @param upperBound the smallest xz2 index
+     * @return boolean
+     */
+    public boolean match(long lowerBound, long upperBound) {
+      return (lowerBound >= lower && lowerBound <= upper)
+          || (upperBound >= lower && upperBound <= upper);
+    }
+
     @Override
     public String toString() {
-      return lower + INNER_DELIMITER + upper + INNER_DELIMITER + contained;
+      return lower + INNER_DELIMITER + upper + INNER_DELIMITER + level;
     }
 
     /**
