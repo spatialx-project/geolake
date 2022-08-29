@@ -19,7 +19,10 @@
 package org.apache.iceberg.transforms;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.Collectors;
 import org.apache.iceberg.expressions.BoundPredicate;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.expressions.Expressions;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.transforms.geometry.IndexRangeSet;
@@ -87,17 +90,50 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
 
   @Override
   public UnboundRangePredicate project(String name, BoundPredicate<T> predicate) {
-    // math the contained and overlapped partitions
-    return getRange(name, predicate, false);
+    Expression.Operation op = predicate.op();
+    List<IndexRangeSet.Interval> intervals = getRange(predicate);
+    if (intervals == null) {
+      return null;
+    }
+    switch (op) {
+      case ST_IN:
+      case ST_INTERSECT:
+        return new UnboundRangePredicate(
+            predicate.op(), Expressions.ref(name), new IndexRangeSet(intervals));
+      case ST_CONTAIN:
+        IndexRangeSet rangeSet =
+            new IndexRangeSet(
+                intervals.stream()
+                    .filter(r -> !r.getLevel().equals(IndexRangeSet.IntervalLevel.WITHIN))
+                    .collect(Collectors.toList()));
+        return new UnboundRangePredicate(predicate.op(), Expressions.ref(name), rangeSet);
+    }
+    return null;
   }
 
   @Override
   public UnboundRangePredicate projectStrict(String name, BoundPredicate<T> predicate) {
-    // only math the contained partitions
-    return getRange(name, predicate, true);
+    Expression.Operation op = predicate.op();
+    List<IndexRangeSet.Interval> intervals = getRange(predicate);
+    if (intervals == null) {
+      return null;
+    }
+    switch (op) {
+      case ST_IN:
+      case ST_INTERSECT:
+        IndexRangeSet rangeSet =
+            new IndexRangeSet(
+                intervals.stream()
+                    .filter(r -> r.getLevel().equals(IndexRangeSet.IntervalLevel.WITHIN))
+                    .collect(Collectors.toList()));
+        return new UnboundRangePredicate(predicate.op(), Expressions.ref(name), rangeSet);
+      case ST_CONTAIN:
+        return null;
+    }
+    return null;
   }
 
-  private UnboundRangePredicate getRange(String name, BoundPredicate<T> predicate, boolean strict) {
+  private List<IndexRangeSet.Interval> getRange(BoundPredicate<T> predicate) {
     Geometry geom = null;
     if (predicate.isLiteralPredicate()) {
       T value = predicate.asLiteralPredicate().literal().value();
@@ -109,15 +145,7 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
       if (geom == null) {
         return null;
       }
-      Envelope envelope = geom.getEnvelopeInternal();
-      IndexRangeSet rangeSet =
-          xz2sfc.ranges(
-              envelope.getMinX(),
-              envelope.getMinY(),
-              envelope.getMaxX(),
-              envelope.getMaxY(),
-              strict);
-      return new UnboundRangePredicate(predicate.op(), Expressions.ref(name), rangeSet);
+      return xz2sfc.ranges(geom);
     }
     return null;
   }

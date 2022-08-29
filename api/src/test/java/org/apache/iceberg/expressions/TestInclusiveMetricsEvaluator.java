@@ -34,12 +34,16 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.stContain;
+import static org.apache.iceberg.expressions.Expressions.stIn;
+import static org.apache.iceberg.expressions.Expressions.stIntersect;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
+import java.util.Random;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -54,6 +58,9 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestInclusiveMetricsEvaluator {
   private static final Schema SCHEMA =
@@ -71,7 +78,8 @@ public class TestInclusiveMetricsEvaluator {
           optional(11, "all_nans_v1_stats", Types.FloatType.get()),
           optional(12, "nan_and_null_only", Types.DoubleType.get()),
           optional(13, "no_nan_stats", Types.DoubleType.get()),
-          optional(14, "some_empty", Types.StringType.get()));
+          optional(14, "some_empty", Types.StringType.get()),
+          optional(15, "geom", Types.GeometryType.get()));
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
@@ -170,6 +178,31 @@ public class TestInclusiveMetricsEvaluator {
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
+
+  private static final double GEOM_X_MIN = -10.0;
+  private static final double GEOM_Y_MIN = -1.0;
+  private static final double GEOM_X_MAX = 10.0;
+  private static final double GEOM_Y_MAX = 1.0;
+
+  private static final DataFile FILE_5 =
+      new TestDataFile(
+          "file_5.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.<Integer, Long>builder().put(3, 50L).put(15, 30L).build(),
+          // null value counts
+          ImmutableMap.<Integer, Long>builder().put(3, 50L).put(15, 20L).build(),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              3, toByteBuffer(StringType.get(), "abc"),
+              15, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN, GEOM_Y_MIN))),
+          // upper bounds
+          ImmutableMap.of(
+              3, toByteBuffer(StringType.get(), "efg"),
+              15, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX, GEOM_Y_MAX))));
 
   @Test
   public void testAllNulls() {
@@ -821,5 +854,49 @@ public class TestInclusiveMetricsEvaluator {
 
     shouldRead = new InclusiveMetricsEvaluator(SCHEMA, notIn("no_nulls", "abc", "def")).eval(FILE);
     Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
+  }
+
+  private Geometry generateGeom(double xmin, double xmax, double ymin, double ymax) {
+    Envelope envelope = new Envelope(xmin, xmax, ymin, ymax);
+    return (new GeometryFactory()).toGeometry(envelope);
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public void testGeometryExpressions() {
+    Random random = new Random();
+    for (int i = 0; i < 50; i++) {
+      double xscale = 2 * (GEOM_X_MAX - GEOM_X_MIN);
+      double yscale = 2 * (GEOM_Y_MAX - GEOM_Y_MIN);
+      double xmin = random.nextDouble() * xscale + GEOM_X_MIN;
+      double xmax = xmin + random.nextDouble() * xscale;
+      double ymin = random.nextDouble() * yscale + GEOM_Y_MIN;
+      double ymax = ymin + random.nextDouble() * yscale;
+      Geometry queryWindow = generateGeom(xmin, xmax, ymin, ymax);
+
+      Boolean isIn =
+          new InclusiveMetricsEvaluator(SCHEMA, stIn("geom", queryWindow), true).eval(FILE_5);
+      Boolean isIntersect =
+          new InclusiveMetricsEvaluator(SCHEMA, stIntersect("geom", queryWindow), true)
+              .eval(FILE_5);
+      Boolean isContain =
+          new InclusiveMetricsEvaluator(SCHEMA, stContain("geom", queryWindow), true).eval(FILE_5);
+
+      Boolean xOverlap =
+          (xmin >= GEOM_X_MIN && xmin <= GEOM_X_MAX) || (xmax >= GEOM_X_MIN && xmax <= GEOM_X_MAX);
+      Boolean yOverlap =
+          (ymin >= GEOM_Y_MIN && ymin <= GEOM_Y_MAX) || (ymax >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX);
+      if (xOverlap && yOverlap) {
+        Assert.assertTrue("Should read: stIn matches", isIn);
+        Assert.assertTrue("Should read: stIntersect matches", isIntersect);
+      } else {
+        Assert.assertFalse("Should not read: stIn not matches", isIn);
+        Assert.assertFalse("Should not read: stIntersect not matches", isIntersect);
+      }
+
+      Boolean contain =
+          xmin >= GEOM_X_MIN && xmax <= GEOM_X_MAX && ymin >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX;
+      Assert.assertEquals("stContain should work as expected", contain, isContain);
+    }
   }
 }
