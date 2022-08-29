@@ -24,6 +24,11 @@ import org.apache.iceberg.transforms.geometry.IndexRangeSet;
 import org.apache.iceberg.transforms.geometry.XZ2SFCurving;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
 
 public class TestXZ2SFC {
   @Test
@@ -37,19 +42,17 @@ public class TestXZ2SFC {
   @Test
   public void testWholeRangeQuery() {
     int maxResolution = 16;
-    List<Boolean> strictMatch = Arrays.asList(false, true);
     for (int i = 2; i <= maxResolution; i++) {
-      for (Boolean strict : strictMatch) {
-        XZ2SFCurving sfc = new XZ2SFCurving(i);
-        IndexRangeSet indexRangeSet = sfc.ranges(-180, -90, 180, 90, strict);
-        List<IndexRangeSet.Interval> intervalSet = indexRangeSet.getIntervalSet();
-        // should return a single interval that covers all the indexes
-        Assert.assertEquals(1, intervalSet.size());
-        IndexRangeSet.Interval interval = intervalSet.get(0);
-        Assert.assertEquals(1L, interval.getLower());
-        Assert.assertEquals((long) (Math.pow(4, i + 1) - 1) / 3, interval.getUpper());
-        Assert.assertTrue(interval.isContained());
-      }
+      XZ2SFCurving sfc = new XZ2SFCurving(i);
+      List<IndexRangeSet.Interval> intervalSet = sfc.ranges(-180, -90, 180, 90);
+      IndexRangeSet indexRangeSet = new IndexRangeSet(intervalSet);
+      intervalSet = indexRangeSet.getIntervalSet();
+      // should return a single interval that covers all the indexes
+      Assert.assertEquals(1, intervalSet.size());
+      IndexRangeSet.Interval interval = intervalSet.get(0);
+      Assert.assertEquals(1L, interval.getLower());
+      Assert.assertEquals((long) (Math.pow(4, i + 1) - 1) / 3, interval.getUpper());
+      Assert.assertTrue(interval.getLevel().equals(IndexRangeSet.IntervalLevel.WITHIN));
     }
   }
 
@@ -69,8 +72,9 @@ public class TestXZ2SFC {
             new XZ2SFCurving.Bound(0.0, 0.0, 180.0, 90.0),
             new XZ2SFCurving.Bound(0.0, 0.0, 20.0, 20.0));
     for (XZ2SFCurving.Bound bound : containing) {
-      indexRangeSet =
-          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax(), false);
+      List<IndexRangeSet.Interval> intervalSet =
+          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax());
+      indexRangeSet = new IndexRangeSet(intervalSet);
       Assert.assertTrue(indexRangeSet.match(index));
     }
 
@@ -82,8 +86,9 @@ public class TestXZ2SFC {
             new XZ2SFCurving.Bound(10.5, 10.5, 11.5, 11.5),
             new XZ2SFCurving.Bound(11.0, 11.0, 11.0, 11.0));
     for (XZ2SFCurving.Bound bound : overlapping) {
-      indexRangeSet =
-          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax(), false);
+      List<IndexRangeSet.Interval> intervalSet =
+          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax());
+      indexRangeSet = new IndexRangeSet(intervalSet);
       Assert.assertTrue(indexRangeSet.match(index));
     }
 
@@ -95,9 +100,41 @@ public class TestXZ2SFC {
             new XZ2SFCurving.Bound(9.0, 9.0, 9.5, 9.5),
             new XZ2SFCurving.Bound(20.0, 20.0, 180.0, 90.0));
     for (XZ2SFCurving.Bound bound : disjoint) {
-      indexRangeSet =
-          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax(), false);
+      List<IndexRangeSet.Interval> intervalSet =
+          sfc.ranges(bound.getxMin(), bound.getyMin(), bound.getxMax(), bound.getyMax());
+      indexRangeSet = new IndexRangeSet(intervalSet);
       Assert.assertFalse(indexRangeSet.match(index));
     }
+  }
+
+  @Test
+  public void testRangeByGeometry() {
+    int resolution = 12;
+    XZ2SFCurving sfc = new XZ2SFCurving(resolution);
+    double xMin = -1;
+    double xMax = 1;
+    double yMin = -1;
+    double yMax = 1;
+
+    // when the query window is a rectangle parallel to the axes, two `ranges` methods should return
+    // the same result
+    Envelope envelope = new Envelope(xMin, xMax, yMin, yMax);
+    Geometry geometry = new GeometryFactory().toGeometry(envelope);
+    IndexRangeSet rangesByGeom = new IndexRangeSet(sfc.ranges(geometry));
+
+    IndexRangeSet rangesByBound = new IndexRangeSet(sfc.ranges(xMin, yMin, xMax, yMax));
+    Assert.assertEquals(rangesByGeom.toString(), rangesByBound.toString());
+
+    // otherwise, they can not return the same result
+    Point point = new GeometryFactory().createPoint(new Coordinate(0, 0));
+    geometry = point.buffer(10);
+    envelope = geometry.getEnvelopeInternal();
+    xMin = envelope.getMinX();
+    xMax = envelope.getMaxX();
+    yMin = envelope.getMinY();
+    yMax = envelope.getMaxY();
+    rangesByGeom = new IndexRangeSet(sfc.ranges(geometry));
+    rangesByBound = new IndexRangeSet(sfc.ranges(xMin, yMin, xMax, yMax));
+    Assert.assertNotEquals(rangesByGeom.toString(), rangesByBound.toString());
   }
 }

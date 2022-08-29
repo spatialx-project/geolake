@@ -27,6 +27,7 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.transforms.Transform;
+import org.apache.iceberg.transforms.geometry.IndexRangeSet;
 import org.apache.iceberg.util.NaNUtil;
 
 /**
@@ -220,6 +221,23 @@ public class ResidualEvaluator implements Serializable {
       return ((String) ref.eval(struct)).startsWith((String) lit.value())
           ? alwaysFalse()
           : alwaysTrue();
+    }
+
+    @Override
+    public <T> Expression stIntersect(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      Long index = (Long) ref.eval(struct);
+      return rangeSet.match(index) ? alwaysTrue() : alwaysFalse();
+    }
+
+    @Override
+    public <T> Expression stIn(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      return stIntersect(ref, rangeSet);
+    }
+
+    @Override
+    public <T> Expression stContain(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      Long index = (Long) ref.eval(struct);
+      return rangeSet.match(index) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
