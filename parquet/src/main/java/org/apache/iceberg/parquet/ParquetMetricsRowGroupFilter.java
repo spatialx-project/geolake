@@ -548,6 +548,27 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> T min(Statistics<?> statistics, int id) {
       return (T) conversions.get(id).apply(statistics.genericGetMin());

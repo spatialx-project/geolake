@@ -31,7 +31,9 @@ import java.util.Arrays;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
+import org.apache.iceberg.expressions.Pair;
 import org.apache.iceberg.util.UUIDUtil;
+import org.locationtech.jts.geom.Geometry;
 
 public class Conversions {
 
@@ -83,6 +85,7 @@ public class Conversions {
     return toByteBuffer(type.typeId(), value);
   }
 
+  @SuppressWarnings("unchecked")
   public static ByteBuffer toByteBuffer(Type.TypeID typeId, Object value) {
     if (value == null) {
       return null;
@@ -116,6 +119,14 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
+      case GEOMETRY:
+        return TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+      case GEOMETRY_BOUND:
+        Pair<Double, Double> pair = (Pair<Double, Double>) value;
+        return ByteBuffer.allocate(16)
+            .order(ByteOrder.LITTLE_ENDIAN)
+            .putDouble(0, pair.first())
+            .putDouble(8, pair.second());
       default:
         throw new UnsupportedOperationException("Cannot serialize type: " + typeId);
     }
@@ -175,6 +186,8 @@ public class Conversions {
         byte[] unscaledBytes = new byte[buffer.remaining()];
         tmp.get(unscaledBytes);
         return new BigDecimal(new BigInteger(unscaledBytes), decimal.scale());
+      case GEOMETRY_BOUND:
+        return Pair.of(tmp.getDouble(0), tmp.getDouble(8));
       default:
         throw new UnsupportedOperationException("Cannot deserialize type: " + type);
     }

@@ -37,21 +37,28 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
+import static org.apache.iceberg.expressions.Expressions.stContain;
+import static org.apache.iceberg.expressions.Expressions.stIn;
+import static org.apache.iceberg.expressions.Expressions.stIntersect;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Random;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestEvaluator {
   private static final StructType STRUCT =
@@ -86,6 +93,11 @@ public class TestEvaluator {
                       "s6",
                       Types.StructType.of(
                           Types.NestedField.required(23, "f", Types.FloatType.get()))))));
+  private static final StructType GEOMETRY_STRUCT =
+      StructType.of(required(1, "geom", Types.GeometryType.get()));
+  private static final String WORLD_WKT =
+      "POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))";
+  private static final Geometry WORLD_GEOM = TypeUtil.GeometryUtils.wkt2geometry(WORLD_WKT);
 
   @Test
   public void testLessThan() {
@@ -744,5 +756,40 @@ public class TestEvaluator {
             () -> new Evaluator(STRUCT, predicate(Expression.Operation.NOT_IN, "x", 5.1)))
         .isInstanceOf(ValidationException.class)
         .hasMessageContaining("Invalid value for conversion to type int");
+  }
+
+  @Test
+  public void testStInAndStContain() {
+    Random random = new Random();
+    ByteBuffer worldBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(WORLD_WKT);
+    String northHalfWorld = "POLYGON((-180 0, -180 90, 180 90, 180 0, -180 0))";
+    ByteBuffer northHalfWorldBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(northHalfWorld);
+
+    for (int i = 0; i < 50; i++) {
+      double longitude = random.nextDouble() * 360 - 180;
+      double latitude = random.nextDouble() * 180 - 90;
+      String wkt = String.format("POINT(%.2f %.2f)", longitude, latitude);
+      ByteBuffer pointBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(wkt);
+      Geometry point = TypeUtil.GeometryUtils.byteBuffer2geometry(pointBuffer);
+
+      Evaluator inEvaluator = new Evaluator(GEOMETRY_STRUCT, stIn("geom", WORLD_GEOM));
+      Assert.assertTrue(
+          "every single point in world => true", inEvaluator.eval(TestHelpers.Row.of(pointBuffer)));
+
+      Evaluator containEvaluator = new Evaluator(GEOMETRY_STRUCT, stContain("geom", point));
+      Assert.assertTrue(
+          "world contains every single point=> true",
+          containEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
+
+      Evaluator intersectEvaluator = new Evaluator(GEOMETRY_STRUCT, stIntersect("geom", point));
+      Assert.assertTrue(
+          "world is overlapped with every single point => true",
+          intersectEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
+
+      Assert.assertEquals(
+          wkt + " is in the northern Hemisphere => " + (latitude > 0),
+          latitude > 0,
+          intersectEvaluator.eval(TestHelpers.Row.of(northHalfWorldBuffer)));
+    }
   }
 }

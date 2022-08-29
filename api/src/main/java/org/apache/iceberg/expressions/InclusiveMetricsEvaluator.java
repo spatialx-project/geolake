@@ -32,9 +32,16 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
+import org.apache.iceberg.types.Types.GeometryBoundType;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates an {@link Expression} on a {@link DataFile} to test whether rows in the file may match.
@@ -53,6 +60,7 @@ import org.apache.iceberg.util.NaNUtil;
  */
 public class InclusiveMetricsEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
+  private static final Logger LOG = LoggerFactory.getLogger(InclusiveMetricsEvaluator.class);
 
   private final Expression expr;
 
@@ -418,6 +426,57 @@ public class InclusiveMetricsEvaluator {
       }
 
       return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+      return stIn(ref, lit);
+    }
+
+    @Override
+    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+      Envelope metricEnvelope = geoBound(ref);
+      if (metricEnvelope == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Geometry queryWindow = (Geometry) lit.to(GeometryType.get()).value();
+      if (queryWindow.intersects(new GeometryFactory().toGeometry(metricEnvelope))) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+      Envelope metricEnvelope = geoBound(ref);
+      if (metricEnvelope == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Geometry queryWindow = (Geometry) lit.to(GeometryType.get()).value();
+      if (metricEnvelope.contains(queryWindow.getEnvelopeInternal())) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
+    }
+
+    private <T> Envelope geoBound(BoundReference<T> ref) {
+      int id = ref.fieldId();
+      ByteBuffer lowerBoundBuffer = lowerBounds.get(id);
+      ByteBuffer upperBoundBuffer = upperBounds.get(id);
+      try {
+        Pair<Double, Double> lowerBound =
+            Conversions.fromByteBuffer(GeometryBoundType.get(), lowerBoundBuffer);
+        Pair<Double, Double> upperBound =
+            Conversions.fromByteBuffer(GeometryBoundType.get(), upperBoundBuffer);
+        double xMin = lowerBound.first();
+        double yMin = lowerBound.second();
+        double xMax = upperBound.first();
+        double yMax = upperBound.second();
+        return new Envelope(xMin, xMax, yMin, yMax);
+      } catch (Exception e) {
+        LOG.warn("Failed to parse geometry bounds from metrics, error: ", e);
+        return null;
+      }
     }
 
     @Override

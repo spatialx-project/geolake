@@ -34,6 +34,9 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
+import static org.apache.iceberg.expressions.Expressions.stContain;
+import static org.apache.iceberg.expressions.Expressions.stIn;
+import static org.apache.iceberg.expressions.Expressions.stIntersect;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -46,10 +49,12 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestInclusiveManifestEvaluator {
   private static final Schema SCHEMA =
@@ -66,7 +71,8 @@ public class TestInclusiveManifestEvaluator {
           optional(12, "no_nan_or_null", Types.DoubleType.get()),
           optional(13, "all_nulls_missing_nan_float", Types.FloatType.get()),
           optional(14, "all_same_value_or_null", Types.StringType.get()),
-          optional(15, "no_nulls_same_value_a", Types.StringType.get()));
+          optional(15, "no_nulls_same_value_a", Types.StringType.get()),
+          optional(16, "geom", Types.GeometryType.get()));
 
   private static final PartitionSpec SPEC =
       PartitionSpec.builderFor(SCHEMA)
@@ -84,10 +90,18 @@ public class TestInclusiveManifestEvaluator {
           .identity("all_nulls_missing_nan_float")
           .identity("all_same_value_or_null")
           .identity("no_nulls_same_value_a")
+          .xz2("geom")
           .build();
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
+
+  private static final long XZ2_MIN_VALUE = 10L;
+  private static final long XZ2_MAX_VALUE = 100L;
+  private static final ByteBuffer GEOM_INDEX_MIN =
+      toByteBuffer(Types.LongType.get(), XZ2_MIN_VALUE);
+  private static final ByteBuffer GEOM_INDEX_MAX =
+      toByteBuffer(Types.LongType.get(), XZ2_MAX_VALUE);
 
   private static final ByteBuffer INT_MIN = toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE);
   private static final ByteBuffer INT_MAX = toByteBuffer(Types.IntegerType.get(), INT_MAX_VALUE);
@@ -128,7 +142,8 @@ public class TestInclusiveManifestEvaluator {
                   toByteBuffer(Types.FloatType.get(), 20F)),
               new TestHelpers.TestFieldSummary(true, null, null),
               new TestHelpers.TestFieldSummary(true, STRING_MIN, STRING_MIN),
-              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN)),
+              new TestHelpers.TestFieldSummary(false, STRING_MIN, STRING_MIN),
+              new TestHelpers.TestFieldSummary(false, GEOM_INDEX_MIN, GEOM_INDEX_MAX)),
           null);
 
   @Test
@@ -731,5 +746,34 @@ public class TestInclusiveManifestEvaluator {
     shouldRead =
         ManifestEvaluator.forRowFilter(notIn("no_nulls", "abc", "def"), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
+  }
+
+  @Test
+  public void testEvalGeometryExpressions() {
+    String worldWkt = "POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))";
+    String singlePointWkt = "POINT(10 20)";
+    Geometry world = TypeUtil.GeometryUtils.wkt2geometry(worldWkt);
+    Geometry point = TypeUtil.GeometryUtils.wkt2geometry(singlePointWkt);
+
+    // stIn
+    boolean shouldRead = ManifestEvaluator.forRowFilter(stIn("geom", world), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: any geoms is in the world", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(stIn("geom", point), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read, data is not in a single point", shouldRead);
+
+    // stContain
+    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", world), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read: can not contain the whole world", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", point), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read, data not contains the point", shouldRead);
+
+    // stIntersect
+    shouldRead = ManifestEvaluator.forRowFilter(stIntersect("geom", world), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read: any geoms is overlapped with the whole world", shouldRead);
+
+    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", point), SPEC, true).eval(FILE);
+    Assert.assertFalse("Should not read, data is not intersected with the point", shouldRead);
   }
 }

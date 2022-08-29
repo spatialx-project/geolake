@@ -19,12 +19,19 @@
 package org.apache.iceberg.expressions;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.Set;
 import org.apache.iceberg.StructLike;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundVisitor;
+import org.apache.iceberg.transforms.geometry.IndexRangeSet;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.iceberg.types.Types.GeometryType;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
+import org.locationtech.jts.geom.Geometry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates an {@link Expression} for data described by a {@link StructType}.
@@ -35,6 +42,7 @@ import org.apache.iceberg.util.NaNUtil;
  */
 public class Evaluator implements Serializable {
   private final Expression expr;
+  private static final Logger LOG = LoggerFactory.getLogger(Evaluator.class);
 
   public Evaluator(StructType struct, Expression unbound) {
     this.expr = Binder.bind(struct, unbound, true);
@@ -155,6 +163,65 @@ public class Evaluator implements Serializable {
     @Override
     public <T> Boolean notStartsWith(Bound<T> valueExpr, Literal<T> lit) {
       return !startsWith(valueExpr, lit);
+    }
+
+    @Override
+    public <T> Boolean stIn(Bound<T> valueExpr, Literal<T> lit) {
+      Geometry geometry = evalAsGeometry(valueExpr);
+      Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
+      return geometry.within(boundary);
+    }
+
+    @Override
+    public <T> Boolean stIntersect(Bound<T> valueExpr, Literal<T> lit) {
+      Geometry geometry = evalAsGeometry(valueExpr);
+      Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
+      return geometry.intersects(boundary);
+    }
+
+    @Override
+    public <T> Boolean stContain(Bound<T> valueExpr, Literal<T> lit) {
+      Geometry geometry = evalAsGeometry(valueExpr);
+      Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
+      return boundary.within(geometry);
+    }
+
+    private <T> Boolean matchGeomPartition(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+      try {
+        Long index = (Long) valueExpr.eval(struct);
+        return rangeSet.match(index);
+      } catch (Exception e) {
+        LOG.warn(
+            "Failed to eval geometry partition filter with `Bound`: {}; Error: {}", valueExpr, e);
+        return true;
+      }
+    }
+
+    @Override
+    public <T> Boolean stIn(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+      return matchGeomPartition(valueExpr, rangeSet);
+    }
+
+    @Override
+    public <T> Boolean stIntersect(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+      return matchGeomPartition(valueExpr, rangeSet);
+    }
+
+    @Override
+    public <T> Boolean stContain(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+      return matchGeomPartition(valueExpr, rangeSet);
+    }
+
+    private <T> Geometry evalAsGeometry(Bound<T> valueExpr) {
+      Object value = valueExpr.eval(struct);
+      if (value instanceof ByteBuffer) {
+        return TypeUtil.GeometryUtils.byteBuffer2geometry((ByteBuffer) value);
+      } else if (value instanceof Geometry) {
+        return (Geometry) value;
+      } else {
+        throw new IllegalStateException(
+            "left hand side of stIn operator is not geometry: " + value);
+      }
     }
   }
 }
