@@ -19,6 +19,7 @@
 package org.apache.iceberg.expressions;
 
 import java.util.stream.Stream;
+import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.Expression.Operation;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -107,6 +108,15 @@ public class Expressions {
     return new UnboundTransform<>(ref(name), Transforms.truncate(Types.LongType.get(), width));
   }
 
+  public static <T> UnboundTerm<T> xz2(String name) {
+    return xz2(name, PartitionSpec.getDefaultXzResolution());
+  }
+
+  @SuppressWarnings("unchecked")
+  public static <T> UnboundTerm<T> xz2(String name, int resolution) {
+    return new UnboundTransform<>(ref(name), (Transform<T, T>) Transforms.xz2(resolution));
+  }
+
   public static <T> UnboundPredicate<T> isNull(String name) {
     return new UnboundPredicate<>(Expression.Operation.IS_NULL, ref(name));
   }
@@ -186,6 +196,98 @@ public class Expressions {
   public static <T> UnboundPredicate<T> notEqual(UnboundTerm<T> expr, T value) {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, expr, value);
   }
+
+  public static <T> UnboundPredicate<T> stIn(String name, T value) {
+    return new UnboundPredicate<>(Operation.ST_IN, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> stIn(UnboundTerm<T> expr, T value) {
+    return new UnboundPredicate<>(Operation.ST_IN, expr, value);
+  }
+
+  public static <T> UnboundPredicate<T> stIntersect(String name, T value) {
+    return new UnboundPredicate<>(Operation.ST_INTERSECT, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> stIntersect(UnboundTerm<T> expr, T value) {
+    return new UnboundPredicate<>(Operation.ST_INTERSECT, expr, value);
+  }
+
+  public static <T> UnboundPredicate<T> stContain(String name, T value) {
+    return new UnboundPredicate<>(Operation.ST_CONTAIN, ref(name), value);
+  }
+
+  public static <T> UnboundPredicate<T> stContain(UnboundTerm<T> expr, T value) {
+    return new UnboundPredicate<>(Operation.ST_CONTAIN, expr, value);
+  }
+
+  // public static <T> UnboundPredicate<ByteBuffer> stIn(String name, T value) {
+  //   if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_IN, ref(name), byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_IN, ref(name), (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
+  //
+  // public static <T> UnboundPredicate<ByteBuffer> stIn(UnboundTerm<ByteBuffer> expr, T value) {
+  //   if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_IN, expr, byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_IN, expr, (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
+  //
+  // public static <T> UnboundPredicate<ByteBuffer> stIntersect(String name, T value) {
+  //   if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_INTERSECT, ref(name), byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_INTERSECT, ref(name), (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
+
+  // public static <T> UnboundPredicate<ByteBuffer> stIntersect(
+  //     UnboundTerm<ByteBuffer> expr, T value) {
+  //   if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_INTERSECT, expr, byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_INTERSECT, expr, (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
+
+  // public static <T> UnboundPredicate<ByteBuffer> stContain(String name, T value) {
+  //     if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_CONTAIN, ref(name), byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_CONTAIN, ref(name), (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
+
+  // public static <T> UnboundPredicate<ByteBuffer> stContain(UnboundTerm<ByteBuffer> expr, T value)
+  // {
+  //   if (value instanceof Geometry) {
+  //     ByteBuffer byteBuffer = TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
+  //     return new UnboundPredicate<>(Operation.ST_CONTAIN, expr, byteBuffer);
+  //   }
+  //   if (value instanceof ByteBuffer) {
+  //     return new UnboundPredicate<>(Operation.ST_CONTAIN, expr, (ByteBuffer) value);
+  //   }
+  //   return null;
+  // }
 
   public static UnboundPredicate<String> startsWith(String name, String value) {
     return new UnboundPredicate<>(Expression.Operation.STARTS_WITH, ref(name), value);

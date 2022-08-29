@@ -401,6 +401,24 @@ public class ParquetDictionaryRowGroupFilter {
       return ROWS_CANNOT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+      // TODO: to be implemented
+      return ROWS_MIGHT_MATCH;
+    }
+
     @SuppressWarnings("unchecked")
     private <T> Set<T> dict(int id, Comparator<T> comparator) {
       Preconditions.checkNotNull(dictionaries, "Dictionary is required");

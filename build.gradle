@@ -151,6 +151,7 @@ subprojects {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.mockito:mockito-inline'
     testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.locationtech.jts.io:jts-io-common'
   }
 
   test {
@@ -257,7 +258,7 @@ project(':iceberg-core') {
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
-    implementation 'org.locationtech.jts.io:jts-io-common:1.19.0'
+    implementation 'org.locationtech.jts.io:jts-io-common'
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
@@ -309,7 +310,7 @@ project(':iceberg-data') {
     }
 
     compileOnly "org.apache.avro:avro"
-    testImplementation 'org.locationtech.jts.io:jts-io-common:1.19.0'
+    testImplementation 'org.locationtech.jts.io:jts-io-common'
     testImplementation("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -505,6 +506,7 @@ project(':iceberg-hive-metastore') {
 project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation 'org.locationtech.jts.io:jts-io-common'
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
@@ -548,7 +550,7 @@ project(':iceberg-parquet') {
       exclude group: 'org.codehaus.jackson'
     }
 
-    implementation 'org.locationtech.jts.io:jts-io-common:1.19.0'
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
