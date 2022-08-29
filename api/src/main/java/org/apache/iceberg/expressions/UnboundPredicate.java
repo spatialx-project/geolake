@@ -161,7 +161,6 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       throw new ValidationException(
           "Invalid value for conversion to type %s: %s (%s)",
           boundTerm.type(), literal().value(), literal().value().getClass().getName());
-
     } else if (lit == Literals.aboveMax()) {
       switch (op()) {
         case LT:
@@ -267,6 +266,12 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
         return term() + " in (" + COMMA.join(literals()) + ")";
       case NOT_IN:
         return term() + " not in (" + COMMA.join(literals()) + ")";
+      case ST_IN:
+        return term() + " in " + literal();
+      case ST_INTERSECT:
+        return term() + " intersect " + literal();
+      case ST_CONTAIN:
+        return term() + " contain " + literal();
       default:
         return "Invalid predicate: operation = " + op();
     }

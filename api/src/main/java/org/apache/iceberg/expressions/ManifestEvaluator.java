@@ -31,10 +31,15 @@ import org.apache.iceberg.ManifestFile;
 import org.apache.iceberg.ManifestFile.PartitionFieldSummary;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.expressions.ExpressionVisitors.BoundExpressionVisitor;
+import org.apache.iceberg.transforms.geometry.IndexRangeSet;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
+import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Evaluates an {@link Expression} on a {@link ManifestFile} to test whether the file contains
@@ -49,6 +54,7 @@ import org.apache.iceberg.util.BinaryUtil;
  */
 public class ManifestEvaluator {
   private static final int IN_PREDICATE_LIMIT = 200;
+  private static final Logger LOG = LoggerFactory.getLogger(ManifestEvaluator.class);
 
   private final Expression expr;
 
@@ -397,6 +403,60 @@ public class ManifestEvaluator {
         }
       }
 
+      return ROWS_MIGHT_MATCH;
+    }
+
+    private <T> Boolean matchGeomPartition(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      int pos = Accessors.toPosition(ref.accessor());
+      PartitionFieldSummary fieldStats = stats.get(pos);
+      if (fieldStats.containsNull()) {
+        return ROWS_MIGHT_MATCH;
+      }
+      if (ref.type() != Types.LongType.get()) {
+        throw new IllegalStateException(
+            "The value geometry partition should be Long, not " + ref.type());
+      }
+      long lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+      long upper = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+      if (rangeSet.match(lower, upper)) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIn(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      return matchGeomPartition(ref, rangeSet);
+    }
+
+    @Override
+    public <T> Boolean stIntersect(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      return matchGeomPartition(ref, rangeSet);
+    }
+
+    @Override
+    public <T> Boolean stContain(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      return matchGeomPartition(ref, rangeSet);
+    }
+
+    @Override
+    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+      LOG.warn(
+          "ManifestEvaluator eval stIn with Literal value, always return true. It should not be called if you are coding correctly");
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+      LOG.warn(
+          "ManifestEvaluator eval stIntersect with Literal value, always return true. It should not be called if you are coding correctly");
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+      LOG.warn(
+          "ManifestEvaluator eval stContain with Literal value, always return true. It should not be called if you are coding correctly");
       return ROWS_MIGHT_MATCH;
     }
 

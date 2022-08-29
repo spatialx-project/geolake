@@ -72,6 +72,10 @@ public class PartitionSpec implements Serializable {
     this.lastAssignedFieldId = lastAssignedFieldId;
   }
 
+  public static int getDefaultXzResolution() {
+    return DEFAULT_XZ_RESOLUTION;
+  }
+
   /** Returns the {@link Schema} for this spec. */
   public Schema schema() {
     return schema;
