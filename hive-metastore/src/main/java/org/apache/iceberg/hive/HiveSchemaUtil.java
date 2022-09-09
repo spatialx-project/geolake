@@ -166,6 +166,8 @@ public final class HiveSchemaUtil {
         return "timestamp";
       case FIXED:
       case BINARY:
+      case GEOMETRY:
+        // hive metastore will verify the data type returned here
         return "binary";
       case DECIMAL:
         final Types.DecimalType decimalType = (Types.DecimalType) type;

@@ -19,8 +19,6 @@
 
 package org.apache.iceberg.spark;
 
-import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
@@ -28,6 +26,9 @@ import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Map;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -45,7 +46,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
   @Test
   public void testGettingStarted() throws IOException {
     // Creating a table
-    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg", tableName);
 
     // Writing
     sql("INSERT INTO %s VALUES (1, 'a'), (2, 'b'), (3, 'c')", tableName);
@@ -157,4 +158,24 @@ public class SmokeTest extends SparkExtensionsTestBase {
     return validationCatalog.loadTable(tableIdent);
   }
 
+  @Test
+  public void testGeometryTableDDL() {
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD xz2(12, geo)", tableName);
+    // can not drop a partitioned column due to this issue: https://github.com/apache/iceberg/issues/5676
+    // sql("ALTER TABLE %s DROP COLUMN geo", tableName);
+    sql("DROP TABLE %s", tableName);
+
+    // sql("ALTER TABLE %s ALTER COLUMN geo TYPE binary", tableName);
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (xz2(12, geo))",
+      tableName);
+  }
+
+  @Test
+  public void testGeometryTableWithXz2Partition() {
+    // sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (bucket(12, id))",
+    //   tableName);
+    // List<Object[]> vals = sql("SELECT * FROM testhadoop.api.geom_io");
+    // vals.forEach(obj -> System.out.println(Arrays.toString(obj)));
+  }
 }

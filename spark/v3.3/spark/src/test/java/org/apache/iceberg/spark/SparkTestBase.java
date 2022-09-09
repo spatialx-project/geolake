@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import locationtech.spark.jts.package$;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.ContentFile;
@@ -64,7 +65,6 @@ public abstract class SparkTestBase {
     SparkTestBase.metastore = new TestHiveMetastore();
     metastore.start();
     SparkTestBase.hiveConf = metastore.hiveConf();
-
     SparkTestBase.spark =
         SparkSession.builder()
             .master("local[2]")
@@ -73,7 +73,6 @@ public abstract class SparkTestBase {
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .enableHiveSupport()
             .getOrCreate();
-
     SparkTestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
@@ -104,6 +103,7 @@ public abstract class SparkTestBase {
   }
 
   protected List<Object[]> sql(String query, Object... args) {
+    spark = package$.MODULE$.initJTS(spark);
     List<Row> rows = spark.sql(String.format(query, args)).collectAsList();
     if (rows.size() < 1) {
       return ImmutableList.of();

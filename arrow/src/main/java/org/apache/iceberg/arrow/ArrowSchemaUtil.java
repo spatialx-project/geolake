@@ -68,6 +68,7 @@ public class ArrowSchemaUtil {
       case BINARY:
         // Spark doesn't support BYTE(fixed_size) type, so cast it to VarBinary
       case FIXED:
+      case GEOMETRY:
         arrowType = ArrowType.Binary.INSTANCE;
         break;
       case BOOLEAN:

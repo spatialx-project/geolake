@@ -33,6 +33,14 @@ public interface PartitionSpecVisitor<T> {
     throw new UnsupportedOperationException("Identity transform is not supported");
   }
 
+  default T xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+    return xz2(sourceName, sourceId, resolution);
+  }
+
+  default T xz2(String sourceName, int sourceId, int resolution) {
+    throw new UnsupportedOperationException("xz2 transform is not supported");
+  }
+
   default T bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
     return bucket(sourceName, sourceId, numBuckets);
   }
@@ -131,6 +139,9 @@ public interface PartitionSpecVisitor<T> {
       return visitor.hour(field.fieldId(), sourceName, field.sourceId());
     } else if (transform instanceof VoidTransform) {
       return visitor.alwaysNull(field.fieldId(), sourceName, field.sourceId());
+    } else if (transform instanceof ExtendedZCurve) {
+      int resolution = ((ExtendedZCurve<?>) transform).getResolution();
+      return visitor.xz2(field.fieldId(), sourceName, field.sourceId(), resolution);
     } else if (transform instanceof UnknownTransform) {
       return visitor.unknown(field.fieldId(), sourceName, field.sourceId(), transform.toString());
     }

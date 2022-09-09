@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.jts.GeometryUDT;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -40,6 +41,7 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.UserDefinedType;
 import org.apache.spark.sql.types.VarcharType;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
@@ -151,8 +153,18 @@ class SparkTypeToType extends SparkTypeVisitor<Type> {
           ((DecimalType) atomic).precision(), ((DecimalType) atomic).scale());
     } else if (atomic instanceof BinaryType) {
       return Types.BinaryType.get();
+    } else if (atomic instanceof UserDefinedType) {
+      return udt(atomic);
     }
 
     throw new UnsupportedOperationException("Not a supported type: " + atomic.catalogString());
+  }
+
+  @Override
+  public Type udt(DataType type) {
+    if (type instanceof GeometryUDT) {
+      return Types.GeometryType.get();
+    }
+    throw new UnsupportedOperationException("Not a supported type: " + type.catalogString());
   }
 }

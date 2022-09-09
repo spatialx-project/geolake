@@ -143,6 +143,7 @@ subprojects {
   dependencies {
     implementation 'org.slf4j:slf4j-api'
     implementation 'com.github.stephenc.findbugs:findbugs-annotations'
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     testImplementation 'org.junit.vintage:junit-vintage-engine'
     testImplementation 'org.junit.jupiter:junit-jupiter-engine'

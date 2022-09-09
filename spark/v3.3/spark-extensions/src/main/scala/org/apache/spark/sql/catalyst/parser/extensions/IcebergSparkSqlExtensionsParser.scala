@@ -65,7 +65,7 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
 
   private lazy val substitutor = substitutorCtor.newInstance(SQLConf.get)
   private lazy val astBuilder = new IcebergSqlExtensionsAstBuilder(delegate)
-
+  private val createTablePrefix = "create";
   /**
    * Parse a string to a DataType.
    */
@@ -130,7 +130,12 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      val parsedPlan = delegate.parsePlan(sqlText)
+      println("sqlTextAfterSubstitution: " + sqlTextAfterSubstitution)
+      val parsedPlan = if (sqlTextAfterSubstitution.toLowerCase().startsWith(createTablePrefix)) {
+        IcebergCreateSqlParser.parsePlan(sqlText)
+      } else {
+        delegate.parsePlan(sqlText)
+      }
       parsedPlan match {
         case e: ExplainCommand =>
           e.copy(logicalPlan = replaceRowLevelCommands(e.logicalPlan))
