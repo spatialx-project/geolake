@@ -82,6 +82,14 @@ public class ColumnVector implements AutoCloseable {
     return nullabilityHolder.numNulls();
   }
 
+  public String getGeometryEncoding() {
+    if (vectorHolder instanceof VectorHolder.GeometryVectorHolder) {
+      return ((VectorHolder.GeometryVectorHolder) vectorHolder).getGeometryVectorEncoding();
+    } else {
+      return "";
+    }
+  }
+
   @Override
   public void close() {
     accessor.close();

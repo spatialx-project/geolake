@@ -22,9 +22,11 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.DecimalFactory;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
+import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StructChildFactory;
 
 final class ArrowVectorAccessors {
 
@@ -35,7 +37,7 @@ final class ArrowVectorAccessors {
         new GenericArrowVectorAccessorFactory<>(
             JavaDecimalFactory::new,
             JavaStringFactory::new,
-            throwingSupplier("Struct type is not supported"),
+            StructChildFactoryImpl::new,
             throwingSupplier("List type is not supported"));
   }
 
@@ -100,6 +102,18 @@ final class ArrowVectorAccessors {
     @Override
     public BigDecimal ofBigDecimal(BigDecimal value, int precision, int scale) {
       return BigDecimal.valueOf(value.unscaledValue().longValue(), scale);
+    }
+  }
+
+  private static final class StructChildFactoryImpl implements StructChildFactory<ValueVector> {
+    @Override
+    public Class<ValueVector> getGenericClass() {
+      return ValueVector.class;
+    }
+
+    @Override
+    public ValueVector of(ValueVector childVector) {
+      return childVector;
     }
   }
 }
