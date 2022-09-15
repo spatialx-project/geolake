@@ -20,10 +20,11 @@ package org.apache.iceberg.arrow.vectorized.parquet;
 
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
+import org.apache.iceberg.arrow.vectorized.parquet.VectorizedPageIterator.ReadRepeatedBatchResult;
 import org.apache.iceberg.parquet.BaseColumnIterator;
 import org.apache.iceberg.parquet.BasePageIterator;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.Dictionary;
 import org.apache.parquet.column.page.PageReader;
@@ -40,9 +41,6 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
   public VectorizedColumnIterator(
       ColumnDescriptor desc, String writerVersion, boolean setArrowValidityVector) {
     super(desc);
-    Preconditions.checkArgument(
-        desc.getMaxRepetitionLevel() == 0,
-        "Only non-nested columns are supported for vectorized reads");
     this.vectorizedPageIterator =
         new VectorizedPageIterator(desc, writerVersion, setArrowValidityVector);
   }
@@ -83,6 +81,31 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
     protected abstract int nextBatchOf(
         FieldVector vector,
+        int expectedBatchSize,
+        int numValsInVector,
+        int typeWidth,
+        NullabilityHolder holder);
+  }
+
+  public abstract class RepeatedBatchReader {
+    public void nextBatch(ListVector listVector, int typeWidth, NullabilityHolder scratchHolder) {
+      int listsReadSoFar = 0;
+      while (listsReadSoFar < batchSize && hasNext()) {
+        advance();
+        int listsRemaining = batchSize - listsReadSoFar;
+        ReadRepeatedBatchResult result =
+            nextRepeatedBatchOf(
+                listVector, listsRemaining, listsReadSoFar, typeWidth, scratchHolder);
+        listsReadSoFar += result.listsInThisBatch();
+        triplesRead += result.triplesRead();
+        listVector.setValueCount(listsReadSoFar);
+      }
+      // scratchHolder is just a scratch space for accelerating the vectorized reading process.
+      scratchHolder.reset();
+    }
+
+    protected abstract ReadRepeatedBatchResult nextRepeatedBatchOf(
+        ListVector vector,
         int expectedBatchSize,
         int numValsInVector,
         int typeWidth,
@@ -270,6 +293,34 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
     }
   }
 
+  public class IntegerRepeatedBatchReader extends RepeatedBatchReader {
+    @Override
+    protected ReadRepeatedBatchResult nextRepeatedBatchOf(
+        ListVector vector,
+        int expectedBatchSize,
+        int numValsInVector,
+        int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator
+          .intPageReader()
+          .nextRepeatedBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
+  public class DoubleRepeatedBatchReader extends RepeatedBatchReader {
+    @Override
+    protected ReadRepeatedBatchResult nextRepeatedBatchOf(
+        ListVector vector,
+        int expectedBatchSize,
+        int numValsInVector,
+        int typeWidth,
+        NullabilityHolder holder) {
+      return vectorizedPageIterator
+          .doublePageReader()
+          .nextRepeatedBatch(vector, expectedBatchSize, numValsInVector, typeWidth, holder);
+    }
+  }
+
   public IntegerBatchReader integerBatchReader() {
     return new IntegerBatchReader();
   }
@@ -320,5 +371,13 @@ public class VectorizedColumnIterator extends BaseColumnIterator {
 
   public BooleanBatchReader booleanBatchReader() {
     return new BooleanBatchReader();
+  }
+
+  public IntegerRepeatedBatchReader integerRepeatedBatchReader() {
+    return new IntegerRepeatedBatchReader();
+  }
+
+  public DoubleRepeatedBatchReader doubleRepeatedBatchReader() {
+    return new DoubleRepeatedBatchReader();
   }
 }

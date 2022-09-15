@@ -23,10 +23,12 @@ import org.apache.arrow.vector.DecimalVector;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
+import org.apache.arrow.vector.complex.ListVector;
 import org.apache.iceberg.arrow.vectorized.NullabilityHolder;
 import org.apache.iceberg.parquet.BasePageIterator;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ValuesAsBytesReader;
+import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.parquet.CorruptDeltaByteArrays;
 import org.apache.parquet.bytes.ByteBufferInputStream;
 import org.apache.parquet.bytes.BytesUtils;
@@ -45,12 +47,22 @@ public class VectorizedPageIterator extends BasePageIterator {
       ColumnDescriptor desc, String writerVersion, boolean setValidityVector) {
     super(desc, writerVersion);
     this.setArrowValidityVector = setValidityVector;
+    this.maxRepLevel = desc.getMaxRepetitionLevel();
+    Preconditions.checkArgument(
+        maxRepLevel <= 1,
+        "Vectorized readers does not support fields with max repetition level larger than 1");
+    if (maxRepLevel > 0) {
+      this.runLengthRepetitionValues = new RunLengthIntegerValuesHolder();
+    }
   }
 
   private ValuesAsBytesReader plainValuesReader = null;
   private VectorizedDictionaryEncodedParquetValuesReader dictionaryEncodedValuesReader = null;
   private boolean allPagesDictEncoded;
   private VectorizedParquetDefinitionLevelReader vectorizedDefinitionLevelReader;
+  private VectorizedParquetRepetitionLevelReader vectorizedRepetitionLevelReader;
+  private RunLengthIntegerValuesHolder runLengthRepetitionValues;
+  private final int maxRepLevel;
 
   private enum DictionaryDecodeMode {
     NONE, // plain encoding
@@ -123,11 +135,24 @@ public class VectorizedPageIterator extends BasePageIterator {
   @Override
   protected void initRepetitionLevelsReader(
       DataPageV1 dataPageV1, ColumnDescriptor desc, ByteBufferInputStream in, int triplesCount)
-      throws IOException {}
+      throws IOException {
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxRepetitionLevel());
+    this.vectorizedRepetitionLevelReader =
+        new VectorizedParquetRepetitionLevelReader(bitWidth, triplesCount);
+    this.vectorizedRepetitionLevelReader.initFromPage(triplesCount, in);
+  }
 
   @Override
   protected void initRepetitionLevelsReader(DataPageV2 dataPageV2, ColumnDescriptor desc)
-      throws IOException {}
+      throws IOException {
+    int bitWidth = BytesUtils.getWidthFromMaxInt(desc.getMaxRepetitionLevel());
+    // do not read the length from the stream. v2 pages handle dividing the page bytes.
+    int triplesCount = dataPageV2.getValueCount();
+    this.vectorizedRepetitionLevelReader =
+        new VectorizedParquetRepetitionLevelReader(bitWidth, false, triplesCount);
+    this.vectorizedRepetitionLevelReader.initFromPage(
+        triplesCount, dataPageV2.getRepetitionLevels().toInputStream());
+  }
 
   @Override
   protected void initDefinitionLevelsReader(
@@ -180,6 +205,36 @@ public class VectorizedPageIterator extends BasePageIterator {
     return actualBatchSize;
   }
 
+  /** Result of reading repeated fields in batch fashion. */
+  public static class ReadRepeatedBatchResult {
+    private final int listsInThisBatch;
+    private final int triplesRead;
+
+    public ReadRepeatedBatchResult(int listsInThisBatch, int triplesRead) {
+      this.listsInThisBatch = listsInThisBatch;
+      this.triplesRead = triplesRead;
+    }
+
+    public int listsInThisBatch() {
+      return listsInThisBatch;
+    }
+
+    public int triplesRead() {
+      return triplesRead;
+    }
+  }
+
+  private static void setListVectorOffset(
+      ListVector listVector, int writeIndex, int value, byte isNull) {
+    if (isNull != 1) {
+      listVector.startNewValue(writeIndex);
+    } else {
+      listVector.setNull(writeIndex);
+      listVector.setLastSet(writeIndex);
+    }
+    listVector.getOffsetBuffer().setInt((writeIndex + 1L) * ListVector.OFFSET_WIDTH, value);
+  }
+
   abstract class BagePageReader {
     public int nextBatch(
         FieldVector vector,
@@ -199,6 +254,99 @@ public class VectorizedPageIterator extends BasePageIterator {
       triplesRead += actualBatchSize;
       hasNext = triplesRead < triplesCount;
       return actualBatchSize;
+    }
+
+    public ReadRepeatedBatchResult nextRepeatedBatch(
+        ListVector vector,
+        int expectedBatchSize,
+        int numValsInVector,
+        int typeWidth,
+        NullabilityHolder holder) {
+      Preconditions.checkState(
+          maxRepLevel > 0, "Cannot read non-repeated field using nextRepeatedBatch method");
+
+      // Find out number of triples we need to read from this page using repetition levels.
+      runLengthRepetitionValues.clear();
+      runLengthRepetitionValues.setCapacity(expectedBatchSize);
+      int actualBatchSize =
+          vectorizedRepetitionLevelReader.readRepetitionLevels(
+              expectedBatchSize, runLengthRepetitionValues);
+      int expectedTriplesCount = runLengthRepetitionValues.getCount();
+
+      // Find out offset buffers for each repetition level and the vector for holding actual data.
+      FieldVector dataVector = vector.getDataVector();
+      int numValsInDataVector = dataVector.getValueCount();
+
+      // Expand the data vector if there's not enough space. Apache Arrow only provides reAlloc
+      // method for doubling its current capacity. This looks stupid, but for now it is the best
+      // thing we can do.
+      while (dataVector.getValueCapacity() < numValsInDataVector + expectedTriplesCount) {
+        dataVector.reAlloc();
+      }
+      holder.grow(numValsInDataVector + expectedTriplesCount);
+
+      // Read data spanning multiple records at once into dataVector
+      int actualTriplesRead =
+          nextBatch(dataVector, expectedTriplesCount, numValsInDataVector, typeWidth, holder);
+      Preconditions.checkState(actualTriplesRead == expectedTriplesCount);
+      dataVector.setValueCount(numValsInDataVector + actualTriplesRead);
+
+      // Update offset buffer of list vector
+      int listVectorIndex = numValsInVector;
+      int dataVectorIndex = numValsInDataVector;
+      byte previousListIsNull = 0;
+      for (int k = 0; k < runLengthRepetitionValues.getLength(); k++) {
+        int repLevel = runLengthRepetitionValues.getValue(k);
+        int runLength = runLengthRepetitionValues.getRunLength(k);
+        if (repLevel == maxRepLevel) {
+          dataVectorIndex += runLength;
+        } else {
+          Preconditions.checkState(
+              repLevel == 0, "Vectorized read of nested list is not supported");
+          if (dataVectorIndex != numValsInDataVector) {
+            // Not the first time seeing the starting point of a list, write offset
+            // of the previous list.
+            setListVectorOffset(vector, listVectorIndex++, dataVectorIndex, previousListIsNull);
+          }
+
+          if (runLength > 1
+              && holder.areAllNullsInRange(dataVectorIndex, dataVectorIndex + runLength - 1)) {
+            // Skip consecutive empty lists
+            dataVectorIndex += runLength;
+            listVectorIndex += (runLength - 1);
+            setListVectorOffset(vector, listVectorIndex - 1, dataVectorIndex - 1, (byte) 1);
+            previousListIsNull = holder.isNullAt(dataVectorIndex - 1);
+          } else {
+            previousListIsNull = holder.isNullAt(dataVectorIndex++);
+            for (int i = 1; i < runLength; i++) {
+              setListVectorOffset(vector, listVectorIndex++, dataVectorIndex, previousListIsNull);
+              previousListIsNull = holder.isNullAt(dataVectorIndex++);
+            }
+          }
+        }
+      }
+
+      if (actualBatchSize > 0) {
+        setListVectorOffset(vector, listVectorIndex++, dataVectorIndex, previousListIsNull);
+      }
+      Preconditions.checkState(
+          listVectorIndex - numValsInVector == actualBatchSize,
+          "Number of values added to list vector does not match with batch size");
+      Preconditions.checkState(
+          dataVectorIndex - numValsInDataVector == actualTriplesRead,
+          "Number of values scanned in data vector does not match with actual number of triples read");
+
+      // Set the validity bits of all values of dataVector in a fast way. Since invalid dataVector
+      // values will be masked by the validity bits of listVector, the validity bits of data
+      // vectors became unimportant.
+      int dataValidityStartIndex = numValsInDataVector / 8;
+      int dataValidityBytes =
+          Math.min(
+              (actualTriplesRead + 15) / 8,
+              (int) dataVector.getValidityBuffer().capacity() - dataValidityStartIndex);
+      dataVector.getValidityBuffer().setOne(dataValidityStartIndex, dataValidityBytes);
+
+      return new ReadRepeatedBatchResult(actualBatchSize, actualTriplesRead);
     }
 
     protected abstract void nextVal(
