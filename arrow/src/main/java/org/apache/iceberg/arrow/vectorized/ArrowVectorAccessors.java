@@ -21,8 +21,10 @@ package org.apache.iceberg.arrow.vectorized;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Supplier;
+import org.apache.arrow.vector.ValueVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StringFactory;
+import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory.StructChildFactory;
 
 final class ArrowVectorAccessors {
 
@@ -33,7 +35,7 @@ final class ArrowVectorAccessors {
         new GenericArrowVectorAccessorFactory<>(
             throwingSupplier("Decimal type is not supported"),
             JavaStringFactory::new,
-            throwingSupplier("Struct type is not supported"),
+            StructChildFactoryImpl::new,
             throwingSupplier("List type is not supported"));
   }
 
@@ -80,6 +82,18 @@ final class ArrowVectorAccessors {
       byte[] bytes = new byte[byteBuffer.remaining()];
       byteBuffer.get(bytes);
       return new String(bytes, StandardCharsets.UTF_8);
+    }
+  }
+
+  private static final class StructChildFactoryImpl implements StructChildFactory<ValueVector> {
+    @Override
+    public Class<ValueVector> getGenericClass() {
+      return ValueVector.class;
+    }
+
+    @Override
+    public ValueVector of(ValueVector childVector) {
+      return childVector;
     }
   }
 }

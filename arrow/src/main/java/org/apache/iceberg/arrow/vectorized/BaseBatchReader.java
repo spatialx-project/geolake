@@ -20,6 +20,7 @@ package org.apache.iceberg.arrow.vectorized;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.arrow.vector.FieldVector;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.parquet.column.page.PageReadStore;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
@@ -28,21 +29,22 @@ import org.apache.parquet.hadoop.metadata.ColumnPath;
 /** A base BatchReader class that contains common functionality */
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
-  protected final VectorizedArrowReader[] readers;
+  protected final VectorizedReader<VectorHolder>[] readers;
   protected final VectorHolder[] vectorHolders;
 
+  @SuppressWarnings("unchecked")
   protected BaseBatchReader(List<VectorizedReader<?>> readers) {
-    this.readers =
-        readers.stream()
-            .map(VectorizedArrowReader.class::cast)
-            .toArray(VectorizedArrowReader[]::new);
+    this.readers = new VectorizedReader[readers.size()];
+    for (int k = 0; k < this.readers.length; k++) {
+      this.readers[k] = (VectorizedReader<VectorHolder>) readers.get(k);
+    }
     this.vectorHolders = new VectorHolder[readers.size()];
   }
 
   @Override
   public void setRowGroupInfo(
       PageReadStore pageStore, Map<ColumnPath, ColumnChunkMetaData> metaData, long rowPosition) {
-    for (VectorizedArrowReader reader : readers) {
+    for (VectorizedReader<VectorHolder> reader : readers) {
       if (reader != null) {
         reader.setRowGroupInfo(pageStore, metaData, rowPosition);
       }
@@ -53,8 +55,9 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
     for (int i = 0; i < vectorHolders.length; i++) {
       if (vectorHolders[i] != null) {
         // Release any resources used by the vector
-        if (vectorHolders[i].vector() != null) {
-          vectorHolders[i].vector().close();
+        FieldVector vec = vectorHolders[i].vector();
+        if (vec != null) {
+          vec.close();
         }
         vectorHolders[i] = null;
       }
@@ -73,7 +76,7 @@ public abstract class BaseBatchReader<T> implements VectorizedReader<T> {
 
   @Override
   public void setBatchSize(int batchSize) {
-    for (VectorizedArrowReader reader : readers) {
+    for (VectorizedReader<VectorHolder> reader : readers) {
       if (reader != null) {
         reader.setBatchSize(batchSize);
       }
