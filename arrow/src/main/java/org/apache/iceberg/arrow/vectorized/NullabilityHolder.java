@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.arrow.vectorized;
 
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
@@ -27,10 +28,10 @@ import java.util.Arrays;
  * with monotonically increasing values for the index parameter.
  */
 public class NullabilityHolder {
-  private final byte[] isNull;
+  private byte[] isNull;
   private int numNulls;
-  private final byte[] nonNulls;
-  private final byte[] nulls;
+  private byte[] nonNulls;
+  private byte[] nulls;
 
   public NullabilityHolder(int size) {
     this.isNull = new byte[size];
@@ -77,5 +78,22 @@ public class NullabilityHolder {
 
   public void reset() {
     numNulls = 0;
+  }
+
+  public boolean areAllNullsInRange(int inclusiveStart, int exclusiveEnd) {
+    int length = exclusiveEnd - inclusiveStart;
+    ByteBuffer isNullBuffer = ByteBuffer.wrap(isNull, inclusiveStart, length);
+    ByteBuffer nullsBuffer = ByteBuffer.wrap(nulls, inclusiveStart, length);
+    return isNullBuffer.equals(nullsBuffer);
+  }
+
+  public void grow(int newSize) {
+    if (newSize > size()) {
+      this.isNull = Arrays.copyOf(this.isNull, newSize);
+      this.nonNulls = new byte[newSize];
+      Arrays.fill(nonNulls, (byte) 0);
+      this.nulls = new byte[newSize];
+      Arrays.fill(nulls, (byte) 1);
+    }
   }
 }
