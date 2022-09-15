@@ -165,4 +165,26 @@ public class VectorHolder {
       return numRows;
     }
   }
+
+  /**
+   * Vector holder for holding geometry vectors of various encodings. Encoding of geometry vector
+   * can be retrieved by calling getGeometryVectorEncoding().
+   */
+  public static class GeometryVectorHolder extends VectorHolder {
+    private final String geometryVectorEncoding;
+
+    public GeometryVectorHolder(
+        String geometryVectorEncoding,
+        ColumnDescriptor columnDescriptor,
+        FieldVector vector,
+        NullabilityHolder holder,
+        Type type) {
+      super(columnDescriptor, vector, false, null, holder, type);
+      this.geometryVectorEncoding = geometryVectorEncoding;
+    }
+
+    public String getGeometryVectorEncoding() {
+      return geometryVectorEncoding;
+    }
+  }
 }
