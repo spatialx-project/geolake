@@ -26,6 +26,8 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.arrow.ArrowAllocation;
+import org.apache.iceberg.parquet.GeoParquetEnums;
+import org.apache.iceberg.parquet.GeoParquetUtil;
 import org.apache.iceberg.parquet.TypeWithSchemaVisitor;
 import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
@@ -113,6 +115,38 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
           "Vectorized reads are not supported yet for struct fields");
     }
     return null;
+  }
+
+  @Override
+  public VectorizedReader<?> struct(
+      org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
+    if (iPrimitive != null
+        && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+      GeoParquetEnums.GeometryEncoding geometryEncoding =
+          GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
+      int parquetFieldId = struct.getId().intValue();
+      Types.NestedField icebergField = icebergSchema.findField(parquetFieldId);
+      if (icebergField == null) {
+        return null;
+      }
+      switch (geometryEncoding) {
+        case WKB_BBOX:
+          return new VectorizedWKBBBoxArrowReader(
+              parquetSchema, currentPath(), icebergField, rootAllocator, setArrowValidityVector);
+        case NESTED_LIST:
+          return new VectorizedNestedListGeometryArrowReader(
+              parquetSchema, currentPath(), icebergField, rootAllocator, setArrowValidityVector);
+        default:
+          throw new UnsupportedOperationException(
+              "Unsupported geometry encoding of group type " + struct);
+      }
+    } else {
+      throw new UnsupportedOperationException(
+          "Cannot create vectorized reader for reading group type "
+              + struct
+              + " as primitive type "
+              + iPrimitive);
+    }
   }
 
   @Override
