@@ -43,6 +43,9 @@ import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruni
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
+    // user defined types
+    org.apache.spark.sql.udt.registerTypes()
+
     // parser extensions
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
 
