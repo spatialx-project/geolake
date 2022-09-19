@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.transforms.geometry;
 
+import java.io.Serializable;
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.List;
@@ -26,7 +27,7 @@ import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 
-public class XZ2SFCurving {
+public class XZ2SFCurving implements Serializable {
   private final int resolution;
   private static final double LogPointFive = Math.log(0.5);
   private static final Bound GeoBound = new Bound(-180, -90, 180, 90);
