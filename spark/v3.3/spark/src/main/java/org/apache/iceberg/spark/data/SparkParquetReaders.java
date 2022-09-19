@@ -45,6 +45,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.io.api.Binary;
@@ -61,8 +62,10 @@ import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
+import org.apache.spark.sql.udt.GeometrySerializer;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
 
 public class SparkParquetReaders {
   private SparkParquetReaders() {}
@@ -272,7 +275,11 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new ParquetValueReaders.ByteArrayReader(desc);
+          if (expected.typeId() == TypeID.GEOMETRY) {
+            return new GeometryWKBReader(desc);
+          } else {
+            return new ParquetValueReaders.ByteArrayReader(desc);
+          }
         case INT32:
           if (expected != null && expected.typeId() == TypeID.LONG) {
             return new IntAsLongReader(desc);
@@ -759,6 +766,20 @@ public class SparkParquetReaders {
     @Override
     public MapData getMap(int ordinal) {
       return (MapData) values[ordinal];
+    }
+  }
+
+  private static class GeometryWKBReader extends PrimitiveReader<ArrayData> {
+    GeometryWKBReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public ArrayData read(ArrayData reuse) {
+      Binary binary = column.nextBinary();
+      ByteBuffer buffer = binary.toByteBuffer();
+      Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
+      return new GenericArrayData(GeometrySerializer.serialize(geom));
     }
   }
 }

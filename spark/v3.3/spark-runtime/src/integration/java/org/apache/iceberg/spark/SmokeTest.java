@@ -19,15 +19,23 @@
 
 package org.apache.iceberg.spark;
 
-import java.io.IOException;
-import java.util.Map;
+import com.clearspring.analytics.util.Lists;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.GenericRow;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -176,5 +184,38 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s RENAME COLUMN geo To geom", tableName);
     sql("ALTER TABLE %s ALTER COLUMN geom Type binary", tableName);
     sql("ALTER TABLE %s DROP COLUMN geom", tableName);
+  }
+
+  @Test
+  public void testGeometryTableReadAndWrite() throws NoSuchTableException {
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (xz2(12, geo)) TBLPROPERTIES ('read.parquet.vectorization.enabled' = 'false')", tableName);
+
+    Dataset<Row> tableDf = spark.table(tableName);
+    StructType schema = tableDf.schema();
+
+    List<Row> rows = Lists.newArrayList();
+    int n = 10;
+    for (long k = 0; k < n; k++) {
+      Object[] values = new Object[3];
+      values[0] = k;
+      values[1] = String.format("str_%d", k);
+      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
+      GenericRow row = new GenericRow(values);
+      rows.add(row);
+    }
+
+    Dataset<Row> geomDf = spark.createDataFrame(rows, schema);
+    geomDf.show();
+    geomDf.writeTo(tableName).overwritePartitions();
+    tableDf.show();
+    List<Object[]> data = sql("SELECT * FROM %s", tableName);
+    Assert.assertEquals("Length should be the same", n ,data.size());
+    for (int k = 0; k < n; k++) {
+      Object[] obj = data.get(k);
+      Row row = rows.get(k);
+      Assert.assertEquals(row.get(0), obj[0]);
+      Assert.assertEquals(row.get(1), obj[1]);
+      Assert.assertEquals(row.get(2), obj[2]);
+    }
   }
 }

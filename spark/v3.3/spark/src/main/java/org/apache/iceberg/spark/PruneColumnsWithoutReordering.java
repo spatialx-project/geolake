@@ -44,6 +44,8 @@ import org.apache.spark.sql.types.StringType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.UserDefinedType;
+import org.apache.spark.sql.udt.GeometryUDT;
 
 public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final StructType requestedType;
@@ -216,6 +218,11 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
             requestedDecimal.precision(),
             decimal.precision());
         break;
+      case GEOMETRY:
+        Preconditions.checkArgument(
+            current instanceof GeometryUDT,
+            "Cannot project geometry to unknown user defined type: %s",
+            current);
       default:
     }
 
@@ -236,5 +243,6 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, StringType.class)
           .put(TypeID.FIXED, BinaryType.class)
           .put(TypeID.BINARY, BinaryType.class)
+          .put(TypeID.GEOMETRY, UserDefinedType.class)
           .build();
 }
