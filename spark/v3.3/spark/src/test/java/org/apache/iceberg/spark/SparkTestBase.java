@@ -45,7 +45,6 @@ import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Encoders;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
-import org.apache.spark.sql.iceberg.udt.UDTRegistration;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -74,7 +73,6 @@ public abstract class SparkTestBase {
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
             .enableHiveSupport()
             .getOrCreate();
-    UDTRegistration.registerTypes();
     SparkTestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(
