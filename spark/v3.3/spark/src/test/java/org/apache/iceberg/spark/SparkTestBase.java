@@ -54,6 +54,7 @@ import org.apache.spark.sql.execution.SparkPlan;
 import org.apache.spark.sql.execution.adaptive.AdaptiveSparkPlanExec;
 import org.apache.spark.sql.internal.SQLConf;
 import org.apache.spark.sql.util.QueryExecutionListener;
+import org.apache.spark.sql.udt.package$;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -85,6 +86,7 @@ public abstract class SparkTestBase {
 
     SparkTestBase.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
 
+    package$.MODULE$.registerTypes();
     SparkTestBase.catalog =
         (HiveCatalog)
             CatalogUtil.loadCatalog(

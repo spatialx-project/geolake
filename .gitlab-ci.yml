@@ -30,13 +30,13 @@ core_style:
 test:
   stage: testing
   script:
-    - './gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc --no-parallel'
+    - './gradlew check -DsparkVersions=3.3 -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc'
   only:
     - merge_requests
 
 build:
   stage: building
   script:
-    - './gradlew -DflinkVersions= -DsparkVersions=3.3 -DhiveVersions= build -x test -x javadoc -x integrationTest --no-parallel'
+    - './gradlew -DflinkVersions= -DsparkVersions=3.3 -DhiveVersions= build -x test -x javadoc -x integrationTest'
   only:
     - merge_requests
