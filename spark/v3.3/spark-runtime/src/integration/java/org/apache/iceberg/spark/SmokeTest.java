@@ -157,4 +157,24 @@ public class SmokeTest extends SparkExtensionsTestBase {
     return validationCatalog.loadTable(tableIdent);
   }
 
+  @Test
+  public void testGeometryTableDdl() {
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD PARTITION FIELD xz2(12, geo) AS p1", tableName);
+    sql("ALTER TABLE %s REPLACE PARTITION FIELD p1 WITH xz2(6, geo) as xz", tableName);
+    sql("ALTER TABLE %s DROP PARTITION FIELD xz", tableName);
+    // can not drop a partitioned column due to this issue: https://github.com/apache/iceberg/issues/5676
+    // sql("ALTER TABLE %s DROP COLUMN geo", tableName);
+    sql("DROP TABLE %s", tableName);
+
+    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (xz2(12, geo))",
+      tableName);
+    sql("DROP TABLE %s", tableName);
+
+    sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
+    sql("ALTER TABLE %s ADD COLUMN geo geometry", tableName);
+    sql("ALTER TABLE %s RENAME COLUMN geo To geom", tableName);
+    sql("ALTER TABLE %s ALTER COLUMN geom Type binary", tableName);
+    sql("ALTER TABLE %s DROP COLUMN geom", tableName);
+  }
 }

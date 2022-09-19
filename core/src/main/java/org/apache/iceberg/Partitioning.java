@@ -147,6 +147,12 @@ public class Partitioning {
     }
 
     @Override
+    public Void xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+      builder.asc(Expressions.xz2(sourceName, resolution));
+      return null;
+    }
+
+    @Override
     public Void bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
       // the column with highest cardinality is usually the one with the highest number of buckets
       if (numBuckets > highestNumBuckets) {

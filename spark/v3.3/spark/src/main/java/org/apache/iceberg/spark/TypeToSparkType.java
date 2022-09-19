@@ -107,13 +107,12 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case TIMESTAMP:
         return TimestampType$.MODULE$;
       case STRING:
-        return StringType$.MODULE$;
       case UUID:
         // use String
         return StringType$.MODULE$;
       case FIXED:
-        return BinaryType$.MODULE$;
       case BINARY:
+      case GEOMETRY:
         return BinaryType$.MODULE$;
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
