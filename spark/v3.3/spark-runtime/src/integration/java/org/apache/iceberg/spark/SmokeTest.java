@@ -206,33 +206,39 @@ public class SmokeTest extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testGeometryValuesRW() throws NoSuchTableException {
+  public void testGeometryTableRW() throws NoSuchTableException {
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
-    String vectorizationEnabled = "true";
+    String[] geometryPatition = {" PARTITIONED BY (xz2(12, geo)) ", ""};
+    String[] vectorizationSetting = {"true", "false"};
+    Row[] rows = new Row[10];
+    for (int k = 0; k < 10; k++) {
+      Object[] values = new Object[3];
+      values[0] = (long) k;
+      values[1] = String.format("str_%d", k);
+      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
+      rows[k] = new GenericRow(values);
+    }
     for (String geometryEncoding : geometryEncodings) {
-      sql("DROP TABLE IF EXISTS %s", tableName);
-      sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg " +
-              "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', " +
-              "'write.parquet.geometry.encoding' = '%s')", tableName, vectorizationEnabled, geometryEncoding);
-      Dataset<Row> tableDf = spark.table(tableName);
-      StructType schema = tableDf.schema();
-
-      Row[] rows = new Row[10];
-      for (int k = 0; k < 10; k++) {
-        Object[] values = new Object[3];
-        values[0] = (long) k;
-        values[1] = String.format("str_%d", k);
-        values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
-        rows[k] = new GenericRow(values);
+      for (String partition: geometryPatition) {
+        for (String vectorizationEnabled: vectorizationSetting) {
+          String hint = String.format("(geometryEncoding: %s; partition:%s; vectorizationEnabled: %s)",
+            geometryEncoding, partition, vectorizationEnabled);
+          sql("DROP TABLE IF EXISTS %s", tableName);
+          sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg " +
+              partition +
+            "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', " +
+            "'write.parquet.geometry.encoding' = '%s')", tableName, vectorizationEnabled, geometryEncoding);
+          Dataset<Row> tableDf = spark.table(tableName);
+          StructType schema = tableDf.schema();
+          Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
+          geomDf.writeTo(tableName).overwritePartitions();
+          Assert.assertEquals(hint + "Should have inserted 10 rows",
+            10L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
+          Assert.assertEquals(hint + "Row 5 should have geo POINT (5 6)",
+            "POINT (5 6)",
+            scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
+        }
       }
-
-      Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
-      geomDf.writeTo(tableName).overwritePartitions();
-      Assert.assertEquals("Should have inserted 10 rows",
-              10L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
-      Assert.assertEquals("Row 5 should have geo POINT (5 6)",
-              "POINT (5 6)",
-              scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
     }
   }
 }
