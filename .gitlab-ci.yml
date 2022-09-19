@@ -19,6 +19,11 @@ cache:
     - gradle/wrapper/gradle-wrapper.jar
     - build
 
+default:
+  # cancel job when a newer pipeline starts before the job completes
+  # ref: https://docs.gitlab.com/ee/ci/yaml/#interruptible
+  interruptible: true
+
 # ref: https://github.com/apache/iceberg/blob/master/.github/workflows/java-ci.yml
 core_style:
   stage: checking

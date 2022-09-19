@@ -22,7 +22,10 @@ import java.nio.ByteBuffer;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
 import org.apache.iceberg.StructLike;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.spark.sql.catalyst.InternalRow;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.DecimalType;
@@ -62,7 +65,6 @@ class InternalRowWrapper implements StructLike {
     } else if (getters[pos] != null) {
       return javaClass.cast(getters[pos].apply(row, pos));
     }
-
     return javaClass.cast(row.get(pos, types[pos]));
   }
 
@@ -84,6 +86,10 @@ class InternalRowWrapper implements StructLike {
       StructType structType = (StructType) type;
       InternalRowWrapper nestedWrapper = new InternalRowWrapper(structType);
       return (row, pos) -> nestedWrapper.wrap(row.getStruct(pos, structType.size()));
+    } else if (type instanceof GeometryUDT) {
+      return (row, pos) ->
+          TypeUtil.GeometryUtils.geometry2byteBuffer(
+              GeometrySerializer.deserialize(row.getArray(pos)));
     }
 
     return null;

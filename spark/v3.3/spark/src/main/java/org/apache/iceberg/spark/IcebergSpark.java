@@ -53,4 +53,17 @@ public class IcebergSpark {
             value -> truncate.apply(SparkValueConverter.convert(sourceIcebergType, value)),
             sourceType);
   }
+
+  public static void registerXz2UDF(
+      SparkSession session, String funcName, DataType sourceType, int resolution) {
+    SparkTypeToType typeConverter = new SparkTypeToType();
+    Type sourceIcebergType = typeConverter.atomic(sourceType);
+    Transform<Object, Long> xz2 = Transforms.xz2(resolution);
+    session
+        .udf()
+        .register(
+            funcName,
+            value -> xz2.apply(SparkValueConverter.convert(sourceIcebergType, value)),
+            sourceType);
+  }
 }
