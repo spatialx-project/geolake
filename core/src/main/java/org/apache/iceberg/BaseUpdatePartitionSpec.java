@@ -407,6 +407,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     @Override
+    public Boolean xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+      return false;
+    }
+
+    @Override
     public Boolean bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
       return false;
     }
@@ -462,6 +467,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     }
 
     @Override
+    public Boolean xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+      return false;
+    }
+
+    @Override
     public Boolean bucket(int fieldId, String sourceName, int sourceId, int numBuckets) {
       return false;
     }
@@ -510,6 +520,11 @@ class BaseUpdatePartitionSpec implements UpdatePartitionSpec {
     @Override
     public String identity(int fieldId, String sourceName, int sourceId) {
       return sourceName;
+    }
+
+    @Override
+    public String xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+      return sourceName + "_xz2";
     }
 
     @Override
