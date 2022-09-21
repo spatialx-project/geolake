@@ -22,13 +22,22 @@ import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.ValueVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
+import org.apache.iceberg.arrow.vectorized.ArrowGeometryVectorAccessor;
+import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
+import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
+import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.WKBWriter;
 
 final class ArrowVectorAccessorFactory
     extends GenericArrowVectorAccessorFactory<
@@ -40,6 +49,28 @@ final class ArrowVectorAccessorFactory
         StringFactoryImpl::new,
         StructChildFactoryImpl::new,
         ArrayFactoryImpl::new);
+  }
+
+  @Override
+  public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector>
+      getVectorAccessor(VectorHolder holder) {
+    if (holder instanceof VectorHolder.GeometryVectorHolder) {
+      VectorHolder.GeometryVectorHolder geometryVectorHolder =
+          (VectorHolder.GeometryVectorHolder) holder;
+      String encoding = geometryVectorHolder.getGeometryVectorEncoding();
+      switch (encoding) {
+        case "wkb":
+          return new GeometryWKBAccessor(holder.vector());
+        case "wkb-bbox":
+          return new GeometryWKBBBoxAccessor(holder.vector());
+        case "nested-list":
+          return new GeometryNestedListAccessor(holder.vector());
+        default:
+          throw new IllegalStateException("Invalid vectorized geometry encoding " + encoding);
+      }
+    } else {
+      return super.getVectorAccessor(holder);
+    }
   }
 
   private static final class DecimalFactoryImpl implements DecimalFactory<Decimal> {
@@ -120,6 +151,50 @@ final class ArrowVectorAccessorFactory
     @Override
     public ArrowColumnVector of(ValueVector childVector) {
       return new ArrowColumnVector(childVector);
+    }
+  }
+
+  private static class GeometryWKBAccessor
+      extends ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> {
+    private final VarBinaryVector vector;
+
+    GeometryWKBAccessor(ValueVector vector) {
+      super(vector);
+      this.vector = (VarBinaryVector) vector;
+    }
+
+    @Override
+    public ColumnarArray getArray(int rowId) {
+      byte[] bytes = vector.get(rowId);
+      OnHeapColumnVector columnVector = new OnHeapColumnVector(bytes.length, DataTypes.ByteType);
+      columnVector.putBytes(0, bytes.length, bytes, 0);
+      return new ColumnarArray(columnVector, 0, bytes.length);
+    }
+  }
+
+  private static class GeometryWKBBBoxAccessor extends GeometryWKBAccessor {
+    GeometryWKBBBoxAccessor(ValueVector vector) {
+      super(((StructVector) vector).getChild("wkb"));
+    }
+  }
+
+  private static class GeometryNestedListAccessor
+      extends ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> {
+    private final ArrowGeometryVectorAccessor.NestedListAccessor accessor;
+
+    GeometryNestedListAccessor(ValueVector vector) {
+      super(vector);
+      accessor = new ArrowGeometryVectorAccessor.NestedListAccessor((StructVector) vector);
+    }
+
+    @Override
+    public ColumnarArray getArray(int rowId) {
+      Geometry geometry = accessor.getGeometry(rowId);
+      WKBWriter wkbWriter = new WKBWriter();
+      byte[] bytes = wkbWriter.write(geometry);
+      OnHeapColumnVector columnVector = new OnHeapColumnVector(bytes.length, DataTypes.ByteType);
+      columnVector.putBytes(0, bytes.length, bytes, 0);
+      return new ColumnarArray(columnVector, 0, bytes.length);
     }
   }
 }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.spark.sql.udt
+package org.apache.spark.sql.iceberg.udt
 
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.catalyst.util.GenericArrayData
@@ -60,4 +60,4 @@ class GeometryUDT extends UserDefinedType[Geometry] {
   override def hashCode(): Int = super.hashCode()
 }
 
-case object GeometryUDT extends org.apache.spark.sql.udt.GeometryUDT with scala.Serializable
+case object GeometryUDT extends GeometryUDT with scala.Serializable

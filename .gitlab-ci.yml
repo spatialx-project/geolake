@@ -23,14 +23,14 @@ cache:
 core_style:
   stage: checking
   script:
-    - './gradlew spotlessApply'
+    - './gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleIntegration checkstyleJmh'
   only:
     - merge_requests
 
 test:
   stage: testing
   script:
-    - './gradlew check -DsparkVersions=3.3 -DhiveVersions= -DflinkVersions= -Pquick=true -x javadoc'
+    - './gradlew check -DsparkVersions=3.3 -DhiveVersions= -DflinkVersions= -x javadoc'
   only:
     - merge_requests
 
