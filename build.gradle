@@ -578,6 +578,7 @@ project(':iceberg-arrow') {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'io.netty', module: 'netty-buffer'
     }
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     runtimeOnly("io.netty:netty-buffer")
 
