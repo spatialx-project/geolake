@@ -96,7 +96,7 @@ public class GeoParquetValueReaders {
     }
   }
 
-  private abstract static class GeometryGenericWKBBBoxReader<T> implements ParquetValueReader<T> {
+  public abstract static class GeometryGenericWKBBBoxReader<T> implements ParquetValueReader<T> {
     private final int definitionLevel;
 
     private final ColumnDescriptor wkbDesc;
@@ -114,7 +114,7 @@ public class GeoParquetValueReaders {
 
     private final GeometryFactory ff = new GeometryFactory();
 
-    GeometryGenericWKBBBoxReader(MessageType type, String[] prefix) {
+    public GeometryGenericWKBBBoxReader(MessageType type, String[] prefix) {
       wkbDesc = type.getColumnDescription(ArrayUtil.add(prefix, "wkb"));
       minXDesc = type.getColumnDescription(ArrayUtil.add(prefix, "min_x"));
       minYDesc = type.getColumnDescription(ArrayUtil.add(prefix, "min_y"));
@@ -204,8 +204,7 @@ public class GeoParquetValueReaders {
     }
   }
 
-  private abstract static class GeometryGenericNestedListReader<T>
-      implements ParquetValueReader<T> {
+  public abstract static class GeometryGenericNestedListReader<T> implements ParquetValueReader<T> {
     private final int definitionLevel;
     private final int repetitionLevel;
 
@@ -233,7 +232,7 @@ public class GeoParquetValueReaders {
 
     private final GeometryFactory ff = new GeometryFactory();
 
-    GeometryGenericNestedListReader(MessageType type, String[] prefix) {
+    public GeometryGenericNestedListReader(MessageType type, String[] prefix) {
       typeDesc = type.getColumnDescription(ArrayUtil.add(prefix, "type"));
       xDesc = type.getColumnDescription(ArrayUtil.add(prefix, "x"));
       yDesc = type.getColumnDescription(ArrayUtil.add(prefix, "y"));
