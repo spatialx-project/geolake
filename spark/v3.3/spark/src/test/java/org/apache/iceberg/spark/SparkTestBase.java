@@ -49,6 +49,8 @@ import org.apache.spark.sql.internal.SQLConf;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.apache.spark.serializer.KryoSerializer;
+import org.apache.sedona.core.serde.SedonaKryoRegistrator;
 
 public abstract class SparkTestBase {
 
@@ -71,6 +73,8 @@ public abstract class SparkTestBase {
             .config(SQLConf.PARTITION_OVERWRITE_MODE().key(), "dynamic")
             .config("spark.hadoop." + METASTOREURIS.varname, hiveConf.get(METASTOREURIS.varname))
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config("spark.serializer", KryoSerializer.class.getName())
+            .config("spark.kryo.registrator", GeoIcebergSparkKryoRegistrator.class.getName())
             .enableHiveSupport()
             .getOrCreate();
     SparkTestBase.catalog =

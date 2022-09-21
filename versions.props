@@ -31,6 +31,8 @@ org.scala-lang.modules:scala-collection-compat_2.12 = 2.6.0
 org.scala-lang.modules:scala-collection-compat_2.13 = 2.6.0
 com.emc.ecs:object-client-bundle = 3.3.2
 org.locationtech.jts.io:* = 1.19.0
+org.apache.sedona:* = 1.2.1-incubating
+org.wololo:jts2geojson = 0.17.0
 
 # test deps
 org.junit.vintage:junit-vintage-engine = 5.8.2

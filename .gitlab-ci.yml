@@ -19,6 +19,9 @@ cache:
     - gradle/wrapper/gradle-wrapper.jar
     - build
 
+default:
+  interruptible: true
+
 # ref: https://github.com/apache/iceberg/blob/master/.github/workflows/java-ci.yml
 core_style:
   stage: checking

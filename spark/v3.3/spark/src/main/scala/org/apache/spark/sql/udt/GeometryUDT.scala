@@ -20,10 +20,12 @@ package org.apache.spark.sql.udt
 
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.catalyst.util.GenericArrayData
+import org.apache.spark.sql.sedona_sql.UDT.{GeometryUDT => SedonaGeometryUDT}
 import org.apache.spark.sql.types._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import org.locationtech.jts.geom.Geometry
+
 
 class GeometryUDT extends UserDefinedType[Geometry] {
   override def sqlType: DataType = ArrayType(ByteType, containsNull = false)
@@ -58,6 +60,22 @@ class GeometryUDT extends UserDefinedType[Geometry] {
   }
 
   override def hashCode(): Int = super.hashCode()
+
+  override def sameType(other: DataType): Boolean = {
+    if (DataType.getClass.equals(SedonaGeometryUDT.getClass)) return true
+    super.sameType(other)
+  }
 }
 
-case object GeometryUDT extends org.apache.spark.sql.udt.GeometryUDT with scala.Serializable
+case object GeometryUDT extends GeometryUDT with Serializable;
+//object GeometryUDT {
+//  lazy val geometryUDTImpl: UserDefinedType[Geometry] = {
+//    if (true) {
+//      val sedonaGeometryUDT = "org.apache.spark.sql.sedona_sql.UDT.GeometryUDT"
+//      Class.forName(sedonaGeometryUDT).newInstance().asInstanceOf[UserDefinedType[Geometry]]
+//    } else {
+//      new GeometryUDT()
+//    }
+//  }
+//}
+

@@ -27,8 +27,10 @@ import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.hive.HiveCatalog;
 import org.apache.iceberg.hive.TestHiveMetastore;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.spark.GeoIcebergSparkKryoRegistrator;
 import org.apache.iceberg.spark.SparkCatalogTestBase;
 import org.apache.iceberg.spark.SparkTestBase;
+import org.apache.spark.serializer.KryoSerializer;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.internal.SQLConf;
 import org.junit.BeforeClass;
@@ -58,6 +60,8 @@ public abstract class SparkExtensionsTestBase extends SparkCatalogTestBase {
             .config("spark.sql.shuffle.partitions", "4")
             .config("spark.sql.hive.metastorePartitionPruningFallbackOnException", "true")
             .config("spark.sql.legacy.respectNullabilityInTextDatasetConversion", "true")
+            .config("spark.serializer", KryoSerializer.class.getName())
+            // .config("spark.kryo.registrator", GeoIcebergSparkKryoRegistrator.class.getName())
             .config(
                 SQLConf.ADAPTIVE_EXECUTION_ENABLED().key(), String.valueOf(RANDOM.nextBoolean()))
             .enableHiveSupport()

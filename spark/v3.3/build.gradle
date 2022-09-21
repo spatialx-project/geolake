@@ -42,6 +42,8 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
     implementation 'org.locationtech.jts.io:jts-io-common'
+    implementation 'org.apache.sedona:sedona-core-3.0_2.12'
+    implementation 'org.apache.sedona:sedona-sql-3.0_2.12'
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-data')
@@ -89,6 +91,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
     testImplementation project(path: ':iceberg-core', configuration: 'testArtifacts')
     testImplementation project(path: ':iceberg-data', configuration: 'testArtifacts')
     testImplementation "org.xerial:sqlite-jdbc"
+    testImplementation "org.wololo:jts2geojson"
   }
 
   tasks.withType(Test) {
@@ -149,6 +152,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
     testImplementation project(path: ":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}", configuration: 'testArtifacts')
 
     testImplementation "org.apache.avro:avro"
+    testImplementation "org.wololo:jts2geojson"
 
     // Required because we remove antlr plugin dependencies from the compile configuration, see note above
     runtimeOnly "org.antlr:antlr4-runtime:4.8"

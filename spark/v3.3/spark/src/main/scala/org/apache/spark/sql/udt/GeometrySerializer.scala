@@ -18,6 +18,10 @@
  */
 package org.apache.spark.sql.udt
 
+import com.esotericsoftware.kryo.Kryo
+import com.esotericsoftware.kryo.Serializer
+import com.esotericsoftware.kryo.io.Input
+import com.esotericsoftware.kryo.io.Output
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.WKBReader
@@ -26,7 +30,7 @@ import org.locationtech.jts.io.WKBWriter
 /**
  * SerDe using the WKB reader and writer objects
  */
-object GeometrySerializer {
+object GeometrySerializer extends Serializer[Geometry] {
 
   /**
    * Given a geometry returns array of bytes
@@ -56,5 +60,17 @@ object GeometrySerializer {
     } else {
       2
     }
+  }
+
+  override def write(kryo: Kryo, output: Output, geo: Geometry): Unit = {
+    val bytes = serialize(geo)
+    output.writeInt(bytes.length, true)
+    output.write(bytes)
+  }
+
+  override def read(kryo: Kryo, input: Input, `type`: Class[Geometry]): Geometry = {
+    val bytes = Array.ofDim[Byte](input.readInt(true))
+    val reader = new WKBReader()
+    reader.read(bytes)
   }
 }

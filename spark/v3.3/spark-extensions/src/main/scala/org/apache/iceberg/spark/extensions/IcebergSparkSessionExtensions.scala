@@ -19,7 +19,7 @@
 
 package org.apache.iceberg.spark.extensions
 
-import org.apache.spark.sql.SparkSessionExtensions
+import org.apache.spark.sql.{SparkSessionExtensions, sedona}
 import org.apache.spark.sql.catalyst.analysis.AlignedRowLevelIcebergCommandCheck
 import org.apache.spark.sql.catalyst.analysis.AlignRowLevelCommandAssignments
 import org.apache.spark.sql.catalyst.analysis.CheckMergeIntoTableConditions

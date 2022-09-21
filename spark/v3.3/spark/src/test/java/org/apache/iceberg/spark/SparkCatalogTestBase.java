@@ -36,16 +36,16 @@ public abstract class SparkCatalogTestBase extends SparkTestBaseWithCatalog {
         SparkCatalogConfig.HIVE.implementation(),
         SparkCatalogConfig.HIVE.properties()
       },
-      {
-        SparkCatalogConfig.HADOOP.catalogName(),
-        SparkCatalogConfig.HADOOP.implementation(),
-        SparkCatalogConfig.HADOOP.properties()
-      },
-      {
-        SparkCatalogConfig.SPARK.catalogName(),
-        SparkCatalogConfig.SPARK.implementation(),
-        SparkCatalogConfig.SPARK.properties()
-      }
+      // {
+      //   SparkCatalogConfig.HADOOP.catalogName(),
+      //   SparkCatalogConfig.HADOOP.implementation(),
+      //   SparkCatalogConfig.HADOOP.properties()
+      // },
+      // {
+      //   SparkCatalogConfig.SPARK.catalogName(),
+      //   SparkCatalogConfig.SPARK.implementation(),
+      //   SparkCatalogConfig.SPARK.properties()
+      // }
     };
   }
 

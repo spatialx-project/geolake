@@ -37,6 +37,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.apache.iceberg.types.TypeUtil.GeometryUtils.wkt2geometry;
+
 public class SmokeTest extends SparkExtensionsTestBase {
 
   public SmokeTest(String catalogName, String implementation, Map<String, String> config) {
@@ -199,7 +201,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
       Object[] values = new Object[3];
       values[0] = k;
       values[1] = String.format("str_%d", k);
-      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
+      values[2] = wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
       GenericRow row = new GenericRow(values);
       rows.add(row);
     }
@@ -208,6 +210,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
     geomDf.show();
     geomDf.writeTo(tableName).overwritePartitions();
     tableDf.show();
+    // read all data
     List<Object[]> data = sql("SELECT * FROM %s", tableName);
     Assert.assertEquals("Length should be the same", n ,data.size());
     for (int k = 0; k < n; k++) {
@@ -217,5 +220,9 @@ public class SmokeTest extends SparkExtensionsTestBase {
       Assert.assertEquals(row.get(1), obj[1]);
       Assert.assertEquals(row.get(2), obj[2]);
     }
+
+    // read data with filter
+    data = sql("SELECT * FROM %s WHERE ST_Contains(ST_PolygonFromEnvelope(0, 5, 0, 5), geo)", tableName);
+
   }
 }
