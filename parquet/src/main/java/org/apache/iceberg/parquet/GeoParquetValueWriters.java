@@ -98,10 +98,10 @@ public class GeoParquetValueWriters {
     }
   }
 
-  private static class GeometryGenericWKBWriter<T> extends PrimitiveWriter<T> {
+  public static class GeometryGenericWKBWriter<T> extends PrimitiveWriter<T> {
     private final GeometryFieldMetrics.GenericBuilder<T> metricsBuilder;
 
-    private GeometryGenericWKBWriter(ColumnDescriptor desc) {
+    public GeometryGenericWKBWriter(ColumnDescriptor desc) {
       super(desc);
       int id = desc.getPrimitiveType().getId().intValue();
       metricsBuilder = new GeometryFieldMetrics.GenericBuilder<>(id);
@@ -158,7 +158,7 @@ public class GeoParquetValueWriters {
     }
   }
 
-  private static class GeometryGenericWKBBBoxWriter<T> implements ParquetValueWriter<T> {
+  public static class GeometryGenericWKBBBoxWriter<T> implements ParquetValueWriter<T> {
     private final int definitionLevel;
 
     private final ColumnWriter<Binary> wkbColumnWriter;
@@ -169,7 +169,7 @@ public class GeoParquetValueWriters {
     private final List<TripleWriter<?>> children;
     private final GeometryFieldMetrics.GenericBuilder<T> metricsBuilder;
 
-    GeometryGenericWKBBBoxWriter(MessageType type, String[] prefix) {
+    public GeometryGenericWKBBBoxWriter(MessageType type, String[] prefix) {
       ColumnDescriptor wkbDesc = type.getColumnDescription(ArrayUtil.add(prefix, "wkb"));
       ColumnDescriptor minXDesc = type.getColumnDescription(ArrayUtil.add(prefix, "min_x"));
       ColumnDescriptor minYDesc = type.getColumnDescription(ArrayUtil.add(prefix, "min_y"));
@@ -279,7 +279,7 @@ public class GeoParquetValueWriters {
     }
   }
 
-  private static class GeometryGenericNestedListWriter<T> implements ParquetValueWriter<T> {
+  public static class GeometryGenericNestedListWriter<T> implements ParquetValueWriter<T> {
     private final int definitionLevel;
     private final int repetitionLevel;
     private final ColumnWriter<Integer> typeColumnWriter;
@@ -300,7 +300,7 @@ public class GeoParquetValueWriters {
     private final List<Integer> geomRanges = Lists.newArrayList();
     private final List<Integer> geomTypes = Lists.newArrayList();
 
-    GeometryGenericNestedListWriter(MessageType type, String[] prefix) {
+    public GeometryGenericNestedListWriter(MessageType type, String[] prefix) {
       ColumnDescriptor typeDesc = type.getColumnDescription(ArrayUtil.add(prefix, "type"));
       ColumnDescriptor xDesc = type.getColumnDescription(ArrayUtil.add(prefix, "x"));
       ColumnDescriptor yDesc = type.getColumnDescription(ArrayUtil.add(prefix, "y"));
