@@ -22,6 +22,7 @@ import java.util.List;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -42,7 +43,6 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.sql.types.UserDefinedType;
 import org.apache.spark.sql.types.VarcharType;
-import org.apache.spark.sql.udt.GeometryUDT;
 
 class SparkTypeToType extends SparkTypeVisitor<Type> {
   private final StructType root;

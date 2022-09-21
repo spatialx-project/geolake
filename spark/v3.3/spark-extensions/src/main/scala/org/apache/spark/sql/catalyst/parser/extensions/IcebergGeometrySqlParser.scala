@@ -25,9 +25,9 @@ import org.apache.spark.sql.catalyst.parser.SqlBaseParser.PrimitiveDataTypeConte
 import org.apache.spark.sql.errors.QueryParsingErrors
 import org.apache.spark.sql.execution.SparkSqlAstBuilder
 import org.apache.spark.sql.execution.SparkSqlParser
+import org.apache.spark.sql.iceberg.udt.GeometryUDT
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
-import org.apache.spark.sql.udt.GeometryUDT
 import org.apache.spark.util.Utils.isTesting
 import scala.collection.JavaConverters._
 

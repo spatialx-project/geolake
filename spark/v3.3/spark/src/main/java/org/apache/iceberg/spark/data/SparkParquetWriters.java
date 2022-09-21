@@ -22,6 +22,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import org.apache.iceberg.parquet.GeoParquetEnums;
+import org.apache.iceberg.parquet.GeoParquetUtil;
+import org.apache.iceberg.parquet.GeoParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueReaders.ReusableEntry;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -42,6 +45,8 @@ import org.apache.parquet.schema.Type;
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.ByteType;
 import org.apache.spark.sql.types.DataType;
@@ -50,7 +55,9 @@ import org.apache.spark.sql.types.MapType;
 import org.apache.spark.sql.types.ShortType;
 import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
+import org.apache.spark.sql.types.UserDefinedType;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
 
 public class SparkParquetWriters {
   private SparkParquetWriters() {}
@@ -176,7 +183,11 @@ public class SparkParquetWriters {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return byteArrays(desc);
+          if (sType instanceof UserDefinedType) {
+            return udt((UserDefinedType<?>) sType, primitive);
+          } else {
+            return byteArrays(desc);
+          }
         case BOOLEAN:
           return ParquetValueWriters.booleans(desc);
         case INT32:
@@ -189,6 +200,37 @@ public class SparkParquetWriters {
           return ParquetValueWriters.doubles(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      }
+    }
+
+    @Override
+    public ParquetValueWriter<?> struct(UserDefinedType<?> sType, GroupType groupType) {
+      return udt(sType, groupType);
+    }
+
+    private ParquetValueWriter<?> udt(UserDefinedType<?> sType, Type parquetType) {
+      if (sType instanceof GeometryUDT) {
+        return geometry(parquetType);
+      }
+      throw new UnsupportedOperationException("Unsupported user defined type " + sType);
+    }
+
+    private ParquetValueWriter<?> geometry(Type parquetType) {
+      if (parquetType.isPrimitive()) {
+        ColumnDescriptor desc = this.type.getColumnDescription(currentPath());
+        return new GeometryWKBWriter(desc);
+      } else {
+        GeoParquetEnums.GeometryEncoding geometryEncoding =
+            GeoParquetUtil.getGeometryEncodingOfGroupType(parquetType.asGroupType());
+        switch (geometryEncoding) {
+          case WKB_BBOX:
+            return new GeometryWKBBBoxWriter(type, currentPath());
+          case NESTED_LIST:
+            return new GeometryNestedListWriter(type, currentPath());
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported geometry encoding of group type " + parquetType);
+        }
       }
     }
   }
@@ -453,6 +495,45 @@ public class SparkParquetWriters {
     @Override
     protected Object get(InternalRow struct, int index) {
       return struct.get(index, types[index]);
+    }
+  }
+
+  private static class GeometryWKBWriter
+      extends GeoParquetValueWriters.GeometryGenericWKBWriter<ArrayData> {
+    GeometryWKBWriter(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ArrayData arrayData) {
+      Geometry geom = GeometrySerializer.deserialize(arrayData);
+      writeJtsGeometry(repetitionLevel, geom);
+    }
+  }
+
+  private static class GeometryWKBBBoxWriter
+      extends GeoParquetValueWriters.GeometryGenericWKBBBoxWriter<ArrayData> {
+    GeometryWKBBBoxWriter(MessageType type, String[] prefix) {
+      super(type, prefix);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ArrayData arrayData) {
+      Geometry geom = GeometrySerializer.deserialize(arrayData);
+      writeJtsGeometry(repetitionLevel, geom);
+    }
+  }
+
+  private static class GeometryNestedListWriter
+      extends GeoParquetValueWriters.GeometryGenericNestedListWriter<ArrayData> {
+    GeometryNestedListWriter(MessageType type, String[] prefix) {
+      super(type, prefix);
+    }
+
+    @Override
+    public void write(int repetitionLevel, ArrayData arrayData) {
+      Geometry geom = GeometrySerializer.deserialize(arrayData);
+      writeJtsGeometry(repetitionLevel, geom);
     }
   }
 }

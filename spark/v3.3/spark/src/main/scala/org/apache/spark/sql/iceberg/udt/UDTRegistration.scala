@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.spark.sql
+package org.apache.spark.sql.iceberg.udt
 
-import org.apache.spark.sql.types.UDTRegistration
 import org.locationtech.jts.geom.Geometry
 
-package object udt {
+object UDTRegistration {
   /**
    * This must be called before any user defined types are used.
    */
@@ -30,7 +29,7 @@ package object udt {
   /** Trick to defer initialization until `registerUDTs` is called,
    * and ensure its only called once per ClassLoader.
    */
-  private[udt] lazy val registration: Unit = {
-    UDTRegistration.register(classOf[Geometry].getName, classOf[GeometryUDT].getName)
+  private lazy val registration: Unit = {
+    org.apache.spark.sql.types.UDTRegistration.register(classOf[Geometry].getName, classOf[GeometryUDT].getName)
   }
 }
