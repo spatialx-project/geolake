@@ -86,6 +86,7 @@ public class SparkValueConverter {
       case DECIMAL:
       case STRING:
       case FIXED:
+      case GEOMETRY:
         return object;
       default:
         throw new UnsupportedOperationException("Not a supported type: " + type);
