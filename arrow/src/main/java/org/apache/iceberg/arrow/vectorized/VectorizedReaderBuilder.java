@@ -33,11 +33,13 @@ import org.apache.iceberg.parquet.VectorizedReader;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
+import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName;
 import org.apache.parquet.schema.Type;
 
 public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedReader<?>> {
@@ -120,8 +122,7 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
   @Override
   public VectorizedReader<?> struct(
       org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
-    if (iPrimitive != null
-        && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+    if (iPrimitive != null && iPrimitive.typeId() == TypeID.GEOMETRY) {
       GeoParquetEnums.GeometryEncoding geometryEncoding =
           GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
       int parquetFieldId = struct.getId().intValue();
@@ -168,6 +169,11 @@ public class VectorizedReaderBuilder extends TypeWithSchemaVisitor<VectorizedRea
       return null;
     }
     // Set the validity buffer if null checking is enabled in arrow
+    if (icebergField.type().typeId() == TypeID.GEOMETRY
+        && primitive.getPrimitiveTypeName() == PrimitiveTypeName.BINARY) {
+      return new VectorizedWKBArrowReader(
+          desc, icebergField, rootAllocator, setArrowValidityVector);
+    }
     return new VectorizedArrowReader(desc, icebergField, rootAllocator, setArrowValidityVector);
   }
 }

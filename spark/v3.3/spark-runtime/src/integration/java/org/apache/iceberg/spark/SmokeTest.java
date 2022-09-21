@@ -18,15 +18,22 @@
  */
 package org.apache.iceberg.spark;
 
-import java.io.IOException;
-import java.util.Map;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
+import org.apache.iceberg.types.TypeUtil;
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
+import org.apache.spark.sql.catalyst.expressions.GenericRow;
+import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -196,5 +203,36 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s RENAME COLUMN geo To geom", tableName);
     sql("ALTER TABLE %s ALTER COLUMN geom Type binary", tableName);
     sql("ALTER TABLE %s DROP COLUMN geom", tableName);
+  }
+
+  @Test
+  public void testGeometryValuesRW() throws NoSuchTableException {
+    String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
+    String vectorizationEnabled = "true";
+    for (String geometryEncoding : geometryEncodings) {
+      sql("DROP TABLE IF EXISTS %s", tableName);
+      sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg " +
+              "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', " +
+              "'write.parquet.geometry.encoding' = '%s')", tableName, vectorizationEnabled, geometryEncoding);
+      Dataset<Row> tableDf = spark.table(tableName);
+      StructType schema = tableDf.schema();
+
+      Row[] rows = new Row[10];
+      for (int k = 0; k < 10; k++) {
+        Object[] values = new Object[3];
+        values[0] = (long) k;
+        values[1] = String.format("str_%d", k);
+        values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
+        rows[k] = new GenericRow(values);
+      }
+
+      Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
+      geomDf.writeTo(tableName).overwritePartitions();
+      Assert.assertEquals("Should have inserted 10 rows",
+              10L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
+      Assert.assertEquals("Row 5 should have geo POINT (5 6)",
+              "POINT (5 6)",
+              scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
+    }
   }
 }

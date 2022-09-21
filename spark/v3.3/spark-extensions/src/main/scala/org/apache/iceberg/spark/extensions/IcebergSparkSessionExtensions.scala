@@ -39,12 +39,13 @@ import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteF
 import org.apache.spark.sql.execution.datasources.v2.ReplaceRewrittenRowLevelCommand
 import org.apache.spark.sql.execution.datasources.v2.RowLevelCommandScanRelationPushDown
 import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruning
+import org.apache.spark.sql.iceberg.udt.UDTRegistration
 
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
     // user defined types
-    org.apache.spark.sql.udt.registerTypes()
+    UDTRegistration.registerTypes()
 
     // parser extensions
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }

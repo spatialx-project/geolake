@@ -96,7 +96,7 @@ public class VectorizedNestedListGeometryArrowReader implements VectorizedReader
    */
   private NullabilityHolder scratchNullabilityHolder;
 
-  private boolean setArrowValidityVector;
+  private final boolean setArrowValidityVector;
 
   private int batchSize;
 
