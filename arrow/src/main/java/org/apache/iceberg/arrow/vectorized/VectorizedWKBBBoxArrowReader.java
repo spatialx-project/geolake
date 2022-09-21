@@ -82,7 +82,7 @@ public class VectorizedWKBBBoxArrowReader implements VectorizedReader<VectorHold
    */
   private NullabilityHolder dummyNullabilityHolder;
 
-  private boolean setArrowValidityVector;
+  private final boolean setArrowValidityVector;
 
   private int batchSize;
 

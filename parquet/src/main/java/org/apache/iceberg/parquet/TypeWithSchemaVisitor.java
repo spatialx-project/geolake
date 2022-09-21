@@ -150,7 +150,7 @@ public class TypeWithSchemaVisitor<T> {
           return visitor.struct(struct, group, visitFields(struct, group, visitor));
         } else {
           // Parquet type is struct while iceberg type is primitive, it could be a geometry type
-          // persisted as
+          // persisted as a struct.
           org.apache.iceberg.types.Type.PrimitiveType primitive = iType.asPrimitiveType();
           return visitor.struct(primitive, group);
         }

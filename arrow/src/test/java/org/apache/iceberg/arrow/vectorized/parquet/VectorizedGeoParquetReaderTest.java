@@ -25,9 +25,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VarBinaryVector;
-import org.apache.arrow.vector.complex.ListVector;
 import org.apache.arrow.vector.complex.StructVector;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.DataFiles;
@@ -37,14 +35,15 @@ import org.apache.iceberg.OverwriteFiles;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.arrow.vectorized.ArrowGeometryVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.ColumnVector;
 import org.apache.iceberg.arrow.vectorized.ColumnarBatch;
+import org.apache.iceberg.arrow.vectorized.VectorHolder.GeometryVectorHolder;
 import org.apache.iceberg.arrow.vectorized.VectorizedTableScanIterable;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
-import org.apache.iceberg.parquet.GeoParquetGeometryBuilder;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -55,7 +54,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.CoordinateXY;
 import org.locationtech.jts.geom.CoordinateXYM;
 import org.locationtech.jts.geom.CoordinateXYZM;
 import org.locationtech.jts.geom.Geometry;
@@ -75,7 +73,7 @@ public class VectorizedGeoParquetReaderTest {
           Types.NestedField.required(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "geom", Types.GeometryType.get()));
 
-  private final String[] geometryEncodings = {"wkb-bbox", "nested-list"};
+  private final String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
 
   private final Random random = new Random();
   private final GeometryFactory ff = new GeometryFactory();
@@ -200,8 +198,16 @@ public class VectorizedGeoParquetReaderTest {
   }
 
   private List<Geometry> columnVectorToGeometryList(ColumnVector geomVector) {
+    Assert.assertTrue(
+        "Column vector should be a geometry vector",
+        geomVector.getVectorHolder() instanceof GeometryVectorHolder);
+    GeometryVectorHolder geomVectorHolder = (GeometryVectorHolder) geomVector.getVectorHolder();
     List<Geometry> geometries = null;
-    switch (geomVector.getGeometryEncoding()) {
+    switch (geomVectorHolder.getGeometryVectorEncoding()) {
+      case "wkb":
+        VarBinaryVector wkbVector = (VarBinaryVector) geomVector.getFieldVector();
+        geometries = wkbVectorToGeometryList(wkbVector);
+        break;
       case "wkb-bbox":
         StructVector wkbBBOXVector = (StructVector) geomVector.getFieldVector();
         geometries = wkbVectorToGeometryList((VarBinaryVector) wkbBBOXVector.getChild("wkb"));
@@ -210,7 +216,8 @@ public class VectorizedGeoParquetReaderTest {
         geometries = nestedListVectorToGeometryList((StructVector) geomVector.getFieldVector());
         break;
       default:
-        Assert.fail("Unknown vectorized geometry encoding " + geomVector.getGeometryEncoding());
+        Assert.fail(
+            "Unknown vectorized geometry encoding " + geomVectorHolder.getGeometryVectorEncoding());
     }
     return geometries;
   }
@@ -234,69 +241,19 @@ public class VectorizedGeoParquetReaderTest {
     return geometries;
   }
 
-  @SuppressWarnings("unchecked")
   private List<Geometry> nestedListVectorToGeometryList(StructVector vec) {
     int valueCount = vec.getValueCount();
     List<Geometry> geometries = Lists.newArrayListWithCapacity(valueCount);
-    IntVector typeVec = vec.getChild("type", IntVector.class);
-    ListVector xVec = vec.getChild("x", ListVector.class);
-    ListVector yVec = vec.getChild("y", ListVector.class);
-    ListVector zVec = vec.getChild("z", ListVector.class);
-    ListVector mVec = vec.getChild("m", ListVector.class);
-    ListVector coordRangeVec = vec.getChild("coordinate_ranges", ListVector.class);
-    ListVector lineRangeVec = vec.getChild("line_ranges", ListVector.class);
-    ListVector geomRangeVec = vec.getChild("geometry_ranges", ListVector.class);
-    ListVector geomTypeVec = vec.getChild("geometry_types", ListVector.class);
+    ArrowGeometryVectorAccessor.NestedListAccessor accessor =
+        new ArrowGeometryVectorAccessor.NestedListAccessor(vec);
     for (int k = 0; k < valueCount; k++) {
       if (vec.isNull(k)) {
         geometries.add(null);
       } else {
-        int type = typeVec.get(k);
-        List<Double> xs = (List<Double>) xVec.getObject(k);
-        List<Double> ys = (List<Double>) yVec.getObject(k);
-        List<Double> zs = (List<Double>) zVec.getObject(k);
-        List<Double> ms = (List<Double>) mVec.getObject(k);
-        List<Integer> coordRanges = (List<Integer>) coordRangeVec.getObject(k);
-        List<Integer> lineRanges = (List<Integer>) lineRangeVec.getObject(k);
-        List<Integer> geomRanges = (List<Integer>) geomRangeVec.getObject(k);
-        List<Integer> geomTypes = (List<Integer>) geomTypeVec.getObject(k);
-        List<Coordinate> coordinates = assembleCoordinates(xs, ys, zs, ms);
-        Geometry geometry =
-            new GeoParquetGeometryBuilder.NestedListGeometryBuilder(
-                    ff, type, coordinates, coordRanges, lineRanges, geomRanges, geomTypes)
-                .build();
-        geometries.add(geometry);
+        geometries.add(accessor.getGeometry(k));
       }
     }
     return geometries;
-  }
-
-  private List<Coordinate> assembleCoordinates(
-      List<Double> xs, List<Double> ys, List<Double> zs, List<Double> ms) {
-    List<Coordinate> coordinates = Lists.newArrayList();
-    if (xs == null) {
-      return coordinates;
-    }
-    boolean hasZ = zs != null;
-    boolean hasM = ms != null;
-    int coordIndex = 0;
-    int numCoordinates = xs.size();
-    for (int k = 0; k < numCoordinates; k++) {
-      double coordX = xs.get(k);
-      double coordY = ys.get(k);
-      Coordinate coordinate;
-      if (hasZ && hasM) {
-        coordinate = new CoordinateXYZM(coordX, coordY, zs.get(coordIndex), ms.get(coordIndex));
-      } else if (hasZ) {
-        coordinate = new Coordinate(coordX, coordY, zs.get(coordIndex));
-      } else if (hasM) {
-        coordinate = new CoordinateXYM(coordX, coordY, ms.get(coordIndex));
-      } else {
-        coordinate = new CoordinateXY(coordX, coordY);
-      }
-      coordinates.add(coordinate);
-    }
-    return coordinates;
   }
 
   private List<GenericRecord> generateRandomRecords(int count) {
