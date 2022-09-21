@@ -228,6 +228,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
+    integrationImplementation 'org.locationtech.jts.io:jts-io-common'
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'

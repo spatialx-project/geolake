@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.spark.sql.udt
+package org.apache.spark.sql.iceberg.udt
 
 import org.apache.spark.sql.catalyst.util.ArrayData
 import org.locationtech.jts.geom.Geometry
