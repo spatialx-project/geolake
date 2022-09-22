@@ -42,7 +42,7 @@ public interface Type extends Serializable {
     UUID(java.util.UUID.class),
     FIXED(ByteBuffer.class),
     BINARY(ByteBuffer.class),
-    GEOMETRY(ByteBuffer.class),
+    GEOMETRY(Object.class),
     GEOMETRY_BOUND(Pair.class),
     DECIMAL(BigDecimal.class),
     STRUCT(StructLike.class),
