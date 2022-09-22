@@ -429,12 +429,12 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
-      return stIn(ref, lit);
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
+      return stWithin(ref, lit);
     }
 
     @Override
-    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
       Envelope metricEnvelope = geoBound(ref);
       if (metricEnvelope == null) {
         return ROWS_MIGHT_MATCH;
@@ -447,7 +447,7 @@ public class InclusiveMetricsEvaluator {
     }
 
     @Override
-    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
       Envelope metricEnvelope = geoBound(ref);
       if (metricEnvelope == null) {
         return ROWS_MIGHT_MATCH;
