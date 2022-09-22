@@ -236,7 +236,7 @@ public class TestMetadataTableFilters extends TableTestBase {
   }
 
   @Test
-  public void testIn() {
+  public void testWithin() {
     Table metadataTable = createMetadataTable();
 
     Expression set = Expressions.in("partition.data_bucket", 2, 3);

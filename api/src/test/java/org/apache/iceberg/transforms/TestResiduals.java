@@ -176,7 +176,7 @@ public class TestResiduals {
   }
 
   @Test
-  public void testIn() {
+  public void testWithin() {
     Schema schema =
         new Schema(
             Types.NestedField.optional(50, "dateint", Types.IntegerType.get()),
