@@ -425,38 +425,38 @@ public class ManifestEvaluator {
     }
 
     @Override
-    public <T> Boolean stIn(BoundReference<T> ref, IndexRangeSet rangeSet) {
+    public <T> Boolean stWithin(BoundReference<T> ref, IndexRangeSet rangeSet) {
       return matchGeomPartition(ref, rangeSet);
     }
 
     @Override
-    public <T> Boolean stIntersect(BoundReference<T> ref, IndexRangeSet rangeSet) {
+    public <T> Boolean stIntersects(BoundReference<T> ref, IndexRangeSet rangeSet) {
       return matchGeomPartition(ref, rangeSet);
     }
 
     @Override
-    public <T> Boolean stContain(BoundReference<T> ref, IndexRangeSet rangeSet) {
+    public <T> Boolean stContains(BoundReference<T> ref, IndexRangeSet rangeSet) {
       return matchGeomPartition(ref, rangeSet);
     }
 
     @Override
-    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
       LOG.warn(
-          "ManifestEvaluator eval stIn with Literal value, always return true. It should not be called if you are coding correctly");
+          "ManifestEvaluator eval stWithin with Literal value, always return true. It should not be called if you are coding correctly");
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
       LOG.warn(
-          "ManifestEvaluator eval stIntersect with Literal value, always return true. It should not be called if you are coding correctly");
+          "ManifestEvaluator eval stIntersects with Literal value, always return true. It should not be called if you are coding correctly");
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
       LOG.warn(
-          "ManifestEvaluator eval stContain with Literal value, always return true. It should not be called if you are coding correctly");
+          "ManifestEvaluator eval stContains with Literal value, always return true. It should not be called if you are coding correctly");
       return ROWS_MIGHT_MATCH;
     }
 

@@ -37,9 +37,9 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
-import static org.apache.iceberg.expressions.Expressions.stContain;
-import static org.apache.iceberg.expressions.Expressions.stIn;
-import static org.apache.iceberg.expressions.Expressions.stIntersect;
+import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
+import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -573,7 +573,7 @@ public class TestEvaluator {
   }
 
   @Test
-  public void testIn() {
+  public void testWithin() {
     Assert.assertEquals(3, in("s", 7, 8, 9).literals().size());
     Assert.assertEquals(3, in("s", 7, 8.1, Long.MAX_VALUE).literals().size());
     Assert.assertEquals(3, in("s", "abc", "abd", "abc").literals().size());
@@ -800,16 +800,16 @@ public class TestEvaluator {
       ByteBuffer pointBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(wkt);
       Geometry point = TypeUtil.GeometryUtils.byteBuffer2geometry(pointBuffer);
 
-      Evaluator inEvaluator = new Evaluator(GEOMETRY_STRUCT, stIn("geom", WORLD_GEOM));
+      Evaluator inEvaluator = new Evaluator(GEOMETRY_STRUCT, stWithin("geom", WORLD_GEOM));
       Assert.assertTrue(
           "every single point in world => true", inEvaluator.eval(TestHelpers.Row.of(pointBuffer)));
 
-      Evaluator containEvaluator = new Evaluator(GEOMETRY_STRUCT, stContain("geom", point));
+      Evaluator containEvaluator = new Evaluator(GEOMETRY_STRUCT, stContains("geom", point));
       Assert.assertTrue(
           "world contains every single point=> true",
           containEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
 
-      Evaluator intersectEvaluator = new Evaluator(GEOMETRY_STRUCT, stIntersect("geom", point));
+      Evaluator intersectEvaluator = new Evaluator(GEOMETRY_STRUCT, stIntersects("geom", point));
       Assert.assertTrue(
           "world is overlapped with every single point => true",
           intersectEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
