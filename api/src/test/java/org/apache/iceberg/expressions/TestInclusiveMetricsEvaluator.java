@@ -34,9 +34,9 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.stContain;
-import static org.apache.iceberg.expressions.Expressions.stIn;
-import static org.apache.iceberg.expressions.Expressions.stIntersect;
+import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
+import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -875,28 +875,28 @@ public class TestInclusiveMetricsEvaluator {
       Geometry queryWindow = generateGeom(xmin, xmax, ymin, ymax);
 
       Boolean isIn =
-          new InclusiveMetricsEvaluator(SCHEMA, stIn("geom", queryWindow), true).eval(FILE_5);
+          new InclusiveMetricsEvaluator(SCHEMA, stWithin("geom", queryWindow), true).eval(FILE_5);
       Boolean isIntersect =
-          new InclusiveMetricsEvaluator(SCHEMA, stIntersect("geom", queryWindow), true)
+          new InclusiveMetricsEvaluator(SCHEMA, stIntersects("geom", queryWindow), true)
               .eval(FILE_5);
       Boolean isContain =
-          new InclusiveMetricsEvaluator(SCHEMA, stContain("geom", queryWindow), true).eval(FILE_5);
+          new InclusiveMetricsEvaluator(SCHEMA, stContains("geom", queryWindow), true).eval(FILE_5);
 
       Boolean xOverlap =
           (xmin >= GEOM_X_MIN && xmin <= GEOM_X_MAX) || (xmax >= GEOM_X_MIN && xmax <= GEOM_X_MAX);
       Boolean yOverlap =
           (ymin >= GEOM_Y_MIN && ymin <= GEOM_Y_MAX) || (ymax >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX);
       if (xOverlap && yOverlap) {
-        Assert.assertTrue("Should read: stIn matches", isIn);
-        Assert.assertTrue("Should read: stIntersect matches", isIntersect);
+        Assert.assertTrue("Should read: stWithin matches", isIn);
+        Assert.assertTrue("Should read: stIntersects matches", isIntersect);
       } else {
-        Assert.assertFalse("Should not read: stIn not matches", isIn);
-        Assert.assertFalse("Should not read: stIntersect not matches", isIntersect);
+        Assert.assertFalse("Should not read: stWithin not matches", isIn);
+        Assert.assertFalse("Should not read: stIntersects not matches", isIntersect);
       }
 
       Boolean contain =
           xmin >= GEOM_X_MIN && xmax <= GEOM_X_MAX && ymin >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX;
-      Assert.assertEquals("stContain should work as expected", contain, isContain);
+      Assert.assertEquals("stContains should work as expected", contain, isContain);
     }
   }
 }

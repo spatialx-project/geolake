@@ -406,19 +406,19 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean stIn(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
       // TODO: to be implemented
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean stIntersect(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
       // TODO: to be implemented
       return ROWS_MIGHT_MATCH;
     }
 
     @Override
-    public <T> Boolean stContain(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
       // TODO: to be implemented
       return ROWS_MIGHT_MATCH;
     }
