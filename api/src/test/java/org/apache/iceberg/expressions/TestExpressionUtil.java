@@ -608,27 +608,27 @@ public class TestExpressionUtil {
             "POLYGON ((82.55115 36.778162, 82.607718 36.720354, 82.632968 36.690291, 82.636987 36.682906, 82.55115 36.778162))")) {
       Geometry bound = TypeUtil.GeometryUtils.wkt2geometry(query);
       assertEquals(
-          Expressions.stContain("geom", "(geometry)"),
-          ExpressionUtil.sanitize(Expressions.stContain("geom", bound)));
+          Expressions.stContains("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stContains("geom", bound)));
       assertEquals(
-          Expressions.stIn("geom", "(geometry)"),
-          ExpressionUtil.sanitize(Expressions.stIn("geom", bound)));
+          Expressions.stWithin("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stWithin("geom", bound)));
       assertEquals(
-          Expressions.stIntersect("geom", "(geometry)"),
-          ExpressionUtil.sanitize(Expressions.stIntersect("geom", bound)));
+          Expressions.stIntersects("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stIntersects("geom", bound)));
 
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom CONTAIN (geometry)",
-          ExpressionUtil.toSanitizedString(Expressions.stContain("geom", bound)));
+          ExpressionUtil.toSanitizedString(Expressions.stContains("geom", bound)));
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom INTERSECT (geometry)",
-          ExpressionUtil.toSanitizedString(Expressions.stIntersect("geom", bound)));
+          ExpressionUtil.toSanitizedString(Expressions.stIntersects("geom", bound)));
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom WITHIN (geometry)",
-          ExpressionUtil.toSanitizedString(Expressions.stIn("geom", bound)));
+          ExpressionUtil.toSanitizedString(Expressions.stWithin("geom", bound)));
     }
   }
 

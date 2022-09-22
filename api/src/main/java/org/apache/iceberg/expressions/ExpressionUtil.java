@@ -344,9 +344,9 @@ public class ExpressionUtil {
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case ST_IN:
           return term + " WITHIN " + sanitize(pred.literal(), nowMicros, today);
-        case ST_INTERSECT:
+        case ST_INTERSECTS:
           return term + " INTERSECT " + sanitize(pred.literal(), nowMicros, today);
-        case ST_CONTAIN:
+        case ST_CONTAINS:
           return term + " CONTAIN " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(
