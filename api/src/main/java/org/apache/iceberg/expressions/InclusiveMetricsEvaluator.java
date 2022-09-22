@@ -453,7 +453,7 @@ public class InclusiveMetricsEvaluator {
         return ROWS_MIGHT_MATCH;
       }
       Geometry queryWindow = (Geometry) lit.to(GeometryType.get()).value();
-      if (metricEnvelope.contains(queryWindow.getEnvelopeInternal())) {
+      if (metricEnvelope.covers(queryWindow.getEnvelopeInternal())) {
         return ROWS_MIGHT_MATCH;
       }
       return ROWS_CANNOT_MATCH;

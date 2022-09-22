@@ -668,6 +668,9 @@ class Literals {
   }
 
   static class GeometryLiteral extends BaseLiteral<Geometry> {
+    private static final Comparator<Geometry> CMP =
+        Comparators.<Geometry>nullsFirst().thenComparing(Comparator.naturalOrder());
+
     GeometryLiteral(Geometry value) {
       super(value);
     }
@@ -694,7 +697,7 @@ class Literals {
 
     @Override
     public Comparator<Geometry> comparator() {
-      return null;
+      return CMP;
     }
 
     @Override

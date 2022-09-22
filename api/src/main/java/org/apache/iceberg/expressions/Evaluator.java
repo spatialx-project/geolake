@@ -183,7 +183,7 @@ public class Evaluator implements Serializable {
     public <T> Boolean stContains(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
-      return boundary.within(geometry);
+      return geometry.covers(boundary);
     }
 
     private <T> Boolean matchGeomPartition(Bound<T> valueExpr, IndexRangeSet rangeSet) {

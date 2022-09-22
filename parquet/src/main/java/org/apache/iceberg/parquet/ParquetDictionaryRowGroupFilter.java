@@ -20,9 +20,11 @@ package org.apache.iceberg.parquet;
 
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Binder;
@@ -37,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.NaNUtil;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -45,12 +48,15 @@ import org.apache.parquet.column.page.DictionaryPage;
 import org.apache.parquet.column.page.DictionaryPageReadStore;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.locationtech.jts.geom.Geometry;
 
 public class ParquetDictionaryRowGroupFilter {
   private final Schema schema;
   private final Expression expr;
+  private final List<Types.NestedField> geoFields;
 
   public ParquetDictionaryRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -60,6 +66,10 @@ public class ParquetDictionaryRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.geoFields =
+        schema.columns().stream()
+            .filter(col -> col.type().equals(Types.GeometryType.get()))
+            .collect(Collectors.toList());
   }
 
   /**
@@ -96,6 +106,24 @@ public class ParquetDictionaryRowGroupFilter {
       this.cols = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
 
+      // find the wkb columns for geometry fields which is encoded in "wkb-bbox"
+      Map<String, Integer> geomWkbPath = Maps.newHashMap();
+      for (Types.NestedField geoField : geoFields) {
+        org.apache.parquet.schema.Type geoType =
+            GeoParquetUtil.geomFieldFromFileSchema(fileSchema, geoField);
+        if (geoType == null || geoType.isPrimitive()) {
+          continue;
+        }
+        GroupType groupType = geoType.asGroupType();
+        if (GeoParquetUtil.isGroupTypeRepresentsGeometry(groupType)) {
+          GeoParquetEnums.GeometryEncoding encoding =
+              GeoParquetUtil.getGeometryEncodingOfGroupType(groupType);
+          if (encoding.equals(GeoParquetEnums.GeometryEncoding.WKB_BBOX)) {
+            geomWkbPath.put(geoType.getName() + ".wkb", geoField.fieldId());
+          }
+        }
+      }
+
       for (ColumnDescriptor desc : fileSchema.getColumns()) {
         PrimitiveType colType = fileSchema.getType(desc.getPath()).asPrimitiveType();
         if (colType.getId() != null) {
@@ -103,6 +131,13 @@ public class ParquetDictionaryRowGroupFilter {
           Type icebergType = schema.findType(id);
           cols.put(id, desc);
           conversions.put(id, ParquetConversions.converterFromParquet(colType, icebergType));
+        } else {
+          Integer id = geomWkbPath.get(String.join(".", desc.getPath()));
+          if (id != null) {
+            cols.put(id, desc);
+            conversions.put(
+                id, ParquetConversions.converterFromParquet(colType, Types.GeometryType.get()));
+          }
         }
       }
 
@@ -112,6 +147,12 @@ public class ParquetDictionaryRowGroupFilter {
           int id = colType.getId().intValue();
           isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
           mayContainNulls.put(id, mayContainNull(meta));
+        } else {
+          Integer id = geomWkbPath.get(meta.getPath().toDotString());
+          if (id != null) {
+            isFallback.put(id, ParquetUtil.hasNonDictionaryPages(meta));
+            mayContainNulls.put(id, mayContainNull(meta));
+          }
         }
       }
 
@@ -401,22 +442,40 @@ public class ParquetDictionaryRowGroupFilter {
       return ROWS_CANNOT_MATCH;
     }
 
+    private <T> Boolean geometryFilter(
+        BoundReference<T> ref, Literal<T> lit, Expression.Operation op) {
+      int id = ref.fieldId();
+      Boolean hasNonDictPage = isFallback.get(id);
+      if (hasNonDictPage == null || hasNonDictPage) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Set<T> dictionary = dict(id, lit.comparator());
+      Geometry query = (Geometry) lit.value();
+      switch (op) {
+        case ST_WITHIN:
+          return dictionary.stream().anyMatch(geom -> query.covers((Geometry) geom));
+        case ST_INTERSECTS:
+          return dictionary.stream().anyMatch(geom -> query.intersects((Geometry) geom));
+        case ST_CONTAINS:
+          return dictionary.stream().anyMatch(geom -> ((Geometry) geom).covers(query));
+        default:
+          throw new IllegalArgumentException("Not support operation: " + op);
+      }
+    }
+
     @Override
     public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      return geometryFilter(ref, lit, Expression.Operation.ST_WITHIN);
     }
 
     @Override
     public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      return geometryFilter(ref, lit, Expression.Operation.ST_INTERSECTS);
     }
 
     @Override
     public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      return geometryFilter(ref, lit, Expression.Operation.ST_CONTAINS);
     }
 
     @SuppressWarnings("unchecked")
