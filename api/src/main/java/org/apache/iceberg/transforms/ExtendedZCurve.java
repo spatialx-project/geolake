@@ -96,11 +96,11 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
       return null;
     }
     switch (op) {
-      case ST_IN:
-      case ST_INTERSECT:
+      case ST_WITHIN:
+      case ST_INTERSECTS:
         return new UnboundRangePredicate(
             predicate.op(), Expressions.ref(name), new IndexRangeSet(intervals));
-      case ST_CONTAIN:
+      case ST_CONTAINS:
         IndexRangeSet rangeSet =
             new IndexRangeSet(
                 intervals.stream()
@@ -119,15 +119,15 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
       return null;
     }
     switch (op) {
-      case ST_IN:
-      case ST_INTERSECT:
+      case ST_WITHIN:
+      case ST_INTERSECTS:
         IndexRangeSet rangeSet =
             new IndexRangeSet(
                 intervals.stream()
                     .filter(r -> r.getLevel().equals(IndexRangeSet.IntervalLevel.WITHIN))
                     .collect(Collectors.toList()));
         return new UnboundRangePredicate(predicate.op(), Expressions.ref(name), rangeSet);
-      case ST_CONTAIN:
+      case ST_CONTAINS:
         return null;
     }
     return null;

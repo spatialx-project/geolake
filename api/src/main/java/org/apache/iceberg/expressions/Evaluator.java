@@ -166,21 +166,21 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stIn(Bound<T> valueExpr, Literal<T> lit) {
+    public <T> Boolean stWithin(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
       return geometry.within(boundary);
     }
 
     @Override
-    public <T> Boolean stIntersect(Bound<T> valueExpr, Literal<T> lit) {
+    public <T> Boolean stIntersects(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
       return geometry.intersects(boundary);
     }
 
     @Override
-    public <T> Boolean stContain(Bound<T> valueExpr, Literal<T> lit) {
+    public <T> Boolean stContains(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
       return boundary.within(geometry);
@@ -198,17 +198,17 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stIn(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+    public <T> Boolean stWithin(Bound<T> valueExpr, IndexRangeSet rangeSet) {
       return matchGeomPartition(valueExpr, rangeSet);
     }
 
     @Override
-    public <T> Boolean stIntersect(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+    public <T> Boolean stIntersects(Bound<T> valueExpr, IndexRangeSet rangeSet) {
       return matchGeomPartition(valueExpr, rangeSet);
     }
 
     @Override
-    public <T> Boolean stContain(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+    public <T> Boolean stContains(Bound<T> valueExpr, IndexRangeSet rangeSet) {
       return matchGeomPartition(valueExpr, rangeSet);
     }
 
@@ -220,7 +220,7 @@ public class Evaluator implements Serializable {
         return (Geometry) value;
       } else {
         throw new IllegalStateException(
-            "left hand side of stIn operator is not geometry: " + value);
+            "left hand side of stWithin operator is not geometry: " + value);
       }
     }
   }
