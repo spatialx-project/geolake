@@ -250,6 +250,21 @@ public class ParquetBloomRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
+    @Override
+    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
+      return ROWS_MIGHT_MATCH;
+    }
+
     private BloomFilter loadBloomFilter(int id) {
       if (bloomCache.containsKey(id)) {
         return bloomCache.get(id);

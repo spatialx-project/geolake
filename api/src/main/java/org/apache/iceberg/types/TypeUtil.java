@@ -713,7 +713,7 @@ public class TypeUtil {
         WKTReader wktReader = new WKTReader();
         return wktReader.read(wkt);
       } catch (ParseException e) {
-        throw new IllegalArgumentException("Failed to parse wkt to JTS geometry");
+        throw new IllegalArgumentException("Failed to parse wkt to JTS geometry: " + wkt);
       }
     }
 
