@@ -30,6 +30,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.parquet.io.api.Binary;
 import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotation;
 import org.apache.parquet.schema.PrimitiveType;
+import org.locationtech.jts.io.WKBReader;
 
 class ParquetConversions {
   private ParquetConversions() {}
@@ -82,6 +83,15 @@ class ParquetConversions {
       } else if (icebergType.typeId() == Type.TypeID.DOUBLE
           && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.FLOAT) {
         return value -> ((Float) fromParquet.apply(value)).doubleValue();
+      } else if (icebergType.typeId() == Type.TypeID.GEOMETRY
+          && parquetType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY) {
+        return value -> {
+          try {
+            return new WKBReader().read(((Binary) value).getBytes());
+          } catch (Exception e) {
+            return null;
+          }
+        };
       }
     }
 

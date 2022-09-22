@@ -28,6 +28,7 @@ import java.io.StringWriter;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,6 +42,7 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Iterables;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.Types;
@@ -51,6 +53,7 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
+import org.locationtech.jts.geom.Envelope;
 
 /** Utility for generating metadata for geoparquet files */
 public class GeoParquetUtil {
@@ -309,6 +312,54 @@ public class GeoParquetUtil {
       default:
         throw new UnsupportedOperationException(
             "Unsupported geoparquet geometry encoding: " + geometryEncoding);
+    }
+  }
+
+  /**
+   * Find the corresponding type in parquet by field id
+   *
+   * @param fileSchema parquet file schema
+   * @param field iceberg table field
+   * @return org.apache.parquet.schema.Type
+   */
+  public static org.apache.parquet.schema.Type geomFieldFromFileSchema(
+      MessageType fileSchema, Types.NestedField field) {
+    Optional<org.apache.parquet.schema.Type> optionalGeoType =
+        fileSchema.getFields().stream()
+            .filter(f -> f.getId().intValue() == field.fieldId())
+            .findFirst();
+    return optionalGeoType.orElse(null);
+  }
+
+  /**
+   * Get statistics of geometry field from column chunk metadata
+   *
+   * @param geoName geometry field name saved in parquet file, may be different with the original
+   *     field name in iceberg table.
+   * @param columnMetaData list of column chunk metadata
+   * @param geometryEncoding Encoding of geometry values in parquet files
+   * @return Envelope
+   */
+  public static Envelope geomStatistics(
+      String geoName, List<ColumnChunkMetaData> columnMetaData, GeometryEncoding geometryEncoding) {
+    Map<String, Statistics<?>> colStats = Maps.newHashMap();
+    columnMetaData.forEach(col -> colStats.put(col.getPath().toDotString(), col.getStatistics()));
+    Function<String, String> path = s -> geoName + "." + s;
+    switch (geometryEncoding) {
+      case WKB_BBOX:
+        double minX = (Double) colStats.get(path.apply("min_x")).genericGetMin();
+        double maxX = (Double) colStats.get(path.apply("max_x")).genericGetMax();
+        double minY = (Double) colStats.get(path.apply("min_y")).genericGetMin();
+        double maxY = (Double) colStats.get(path.apply("max_y")).genericGetMax();
+        return new Envelope(minX, maxX, minY, maxY);
+      case NESTED_LIST:
+        minX = (Double) colStats.get(path.apply("x")).genericGetMin();
+        maxX = (Double) colStats.get(path.apply("x")).genericGetMax();
+        minY = (Double) colStats.get(path.apply("y")).genericGetMin();
+        maxY = (Double) colStats.get(path.apply("y")).genericGetMax();
+        return new Envelope(minX, maxX, minY, maxY);
+      default:
+        return null;
     }
   }
 }

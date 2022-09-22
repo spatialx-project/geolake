@@ -18,12 +18,16 @@
  */
 package org.apache.iceberg;
 
+import static org.apache.iceberg.TableProperties.PARQUET_GEOMETRY_WRITE_ENCODING;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.GenericRecord;
@@ -38,27 +42,33 @@ import org.apache.iceberg.io.DataWriter;
 import org.apache.iceberg.io.OutputFile;
 import org.apache.iceberg.parquet.Parquet;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@RunWith(Parameterized.class)
 public class TestTableWithGeometry {
-
   private static final Logger LOG = LoggerFactory.getLogger(TestTableWithGeometry.class);
-  private static final TableIdentifier name = TableIdentifier.of("api", "geom_io_with_xz2");
+  private static final TableIdentifier tableName = TableIdentifier.of("api", "geom_io");
+  private static final String geometryName = "geom";
   private static final Schema schema =
       new Schema(
-          Types.NestedField.required(1, "level", Types.StringType.get()),
-          Types.NestedField.required(2, "event_time", Types.TimestampType.withZone()),
-          Types.NestedField.required(3, "message", Types.StringType.get()),
-          Types.NestedField.optional(4, "geom", Types.GeometryType.get()));
+          Types.NestedField.required(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, geometryName, Types.GeometryType.get()),
+          Types.NestedField.optional(3, "event_time", Types.TimestampType.withZone()));
+
   private static final PartitionSpec spec =
       PartitionSpec.builderFor(schema).hour("event_time").build();
   public static final Configuration conf = new Configuration();
@@ -66,7 +76,18 @@ public class TestTableWithGeometry {
   private static String warehousePath = "";
   private static HadoopCatalog catalog = null;
   private static Table table = null;
-  private static final long N = 20L;
+  private static final int N = 20;
+  private final String encoding;
+  private String dataFilePath;
+
+  public TestTableWithGeometry(String encoding) {
+    this.encoding = encoding;
+  }
+
+  @Parameterized.Parameters(name = "encoding = {0}")
+  public static Object[] parameters() {
+    return new Object[] {"wkb-bbox", "nested-list", "wkb"};
+  }
 
   @BeforeClass
   public static void createWarehouse() throws IOException {
@@ -74,10 +95,30 @@ public class TestTableWithGeometry {
     Assert.assertTrue(warehouse.delete());
     warehousePath = (new Path(warehouse.getAbsolutePath())).toString();
     catalog = new HadoopCatalog(conf, warehousePath);
-    if (!catalog.tableExists(name)) {
-      table = catalog.createTable(name, schema, spec);
-      descTable();
+  }
+
+  @AfterClass
+  public static void dropWarehouse() throws IOException {
+    if (warehouse != null && warehouse.exists()) {
+      Path path = new Path(warehouse.getAbsolutePath());
+      FileSystem fs = path.getFileSystem(conf);
+      Assert.assertTrue("Failed to delete " + warehousePath, fs.delete(path, true));
+    }
+  }
+
+  private void initTable() throws IOException {
+    if (!catalog.tableExists(tableName)) {
+      Map<String, String> properties = Maps.newHashMap();
+      properties.put(PARQUET_GEOMETRY_WRITE_ENCODING, encoding);
+      table = catalog.createTable(tableName, schema, spec, properties);
       writeToTable();
+      descTable();
+    }
+  }
+
+  private void dropTable() {
+    if (catalog.tableExists(tableName)) {
+      catalog.dropTable(tableName);
     }
   }
 
@@ -99,11 +140,11 @@ public class TestTableWithGeometry {
     return data;
   }
 
-  private static void writeToTable() throws IOException {
+  private void writeToTable() throws IOException {
     OffsetDateTime now = OffsetDateTime.now();
     int ts = (int) now.toEpochSecond();
     StructLike partition = TestHelpers.Row.of(ts / 3600);
-    String dataFilePath = String.format(warehousePath + "/%d.parquet", ts);
+    dataFilePath = String.format(warehousePath + "/%d.parquet", ts);
     OutputFile outputFile = table.io().newOutputFile(dataFilePath);
     DataWriter<Object> writer =
         Parquet.writeData(outputFile)
@@ -113,44 +154,52 @@ public class TestTableWithGeometry {
                 type -> GenericParquetWriter.buildWriter(table.schema(), type, table.properties()))
             .build();
     GeometryFactory ff = new GeometryFactory();
-    for (long k = 0; k < N; k++) {
+    for (int k = 0; k < N; k++) {
       Record record = GenericRecord.create(table.schema());
-      record.set(0, String.format("level-%d", k));
-      record.set(1, now);
-      record.set(2, String.format("message-%d", k));
-      Point pt = ff.createPoint(new Coordinate(k, 10 + k));
+      record.set(0, k);
+      Point pt = ff.createPoint(new Coordinate(k, k));
       if (k < 10) {
         // write geometry object
-        record.set(3, pt);
+        record.set(1, pt);
       } else {
         // write WKB
         ByteBuffer geomBytes = TypeUtil.GeometryUtils.geometry2byteBuffer(pt);
-        record.set(3, geomBytes);
+        record.set(1, geomBytes);
       }
+      record.set(2, now);
       writer.write(record);
     }
     writer.close();
     DataFile dataFile = writer.toDataFile();
+    LOG.info("append data file: " + dataFilePath);
     table.newAppend().appendFile(dataFile).commit();
   }
 
   @Test
   public void testGeometryIo() throws IOException {
+    initTable();
+
+    // test all records
     List<Record> records = readTable(Expressions.alwaysTrue());
     Assert.assertEquals("Number of records should be equal", N, records.size());
     for (int i = 0; i < N; i++) {
       Record record = records.get(i);
-      Assert.assertEquals(
-          "level should be equal", String.format("level-%d", i), record.getField("level"));
-      Assert.assertEquals(
-          "message should be equal", String.format("message-%d", i), record.getField("message"));
+      Assert.assertEquals("id should be equal", i, record.getField("id"));
       Assert.assertEquals(
           "geom should be equal",
-          String.format("POINT (%d %d)", i, i + 10),
-          record.getField("geom").toString());
+          String.format("POINT (%d %d)", i, i),
+          record.getField(geometryName).toString());
     }
 
     records = readTable(Expressions.alwaysFalse());
     Assert.assertEquals("no result returned", 0, records.size());
+
+    // test reading with geometry filter
+    Geometry geometry =
+        TypeUtil.GeometryUtils.wkt2geometry("POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))");
+    records = readTable(Expressions.stWithin(geometryName, geometry));
+    Assert.assertEquals("returned size should be 9", 9, records.size());
+
+    dropTable();
   }
 }
