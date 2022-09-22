@@ -34,9 +34,9 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.stContain;
-import static org.apache.iceberg.expressions.Expressions.stIn;
-import static org.apache.iceberg.expressions.Expressions.stIntersect;
+import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stIntersects;
+import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
@@ -756,24 +756,25 @@ public class TestInclusiveManifestEvaluator {
     Geometry point = TypeUtil.GeometryUtils.wkt2geometry(singlePointWkt);
 
     // stIn
-    boolean shouldRead = ManifestEvaluator.forRowFilter(stIn("geom", world), SPEC, true).eval(FILE);
+    boolean shouldRead =
+        ManifestEvaluator.forRowFilter(stWithin("geom", world), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: any geoms is in the world", shouldRead);
 
-    shouldRead = ManifestEvaluator.forRowFilter(stIn("geom", point), SPEC, true).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(stWithin("geom", point), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read, data is not in a single point", shouldRead);
 
     // stContain
-    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", world), SPEC, true).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", world), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read: can not contain the whole world", shouldRead);
 
-    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", point), SPEC, true).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", point), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read, data not contains the point", shouldRead);
 
-    // stIntersect
-    shouldRead = ManifestEvaluator.forRowFilter(stIntersect("geom", world), SPEC, true).eval(FILE);
+    // stIntersects
+    shouldRead = ManifestEvaluator.forRowFilter(stIntersects("geom", world), SPEC, true).eval(FILE);
     Assert.assertTrue("Should read: any geoms is overlapped with the whole world", shouldRead);
 
-    shouldRead = ManifestEvaluator.forRowFilter(stContain("geom", point), SPEC, true).eval(FILE);
+    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", point), SPEC, true).eval(FILE);
     Assert.assertFalse("Should not read, data is not intersected with the point", shouldRead);
   }
 }

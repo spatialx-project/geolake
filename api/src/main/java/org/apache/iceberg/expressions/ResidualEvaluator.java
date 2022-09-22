@@ -224,18 +224,18 @@ public class ResidualEvaluator implements Serializable {
     }
 
     @Override
-    public <T> Expression stIntersect(BoundReference<T> ref, IndexRangeSet rangeSet) {
+    public <T> Expression stIntersects(BoundReference<T> ref, IndexRangeSet rangeSet) {
       Long index = (Long) ref.eval(struct);
       return rangeSet.match(index) ? alwaysTrue() : alwaysFalse();
     }
 
     @Override
-    public <T> Expression stIn(BoundReference<T> ref, IndexRangeSet rangeSet) {
-      return stIntersect(ref, rangeSet);
+    public <T> Expression stWithin(BoundReference<T> ref, IndexRangeSet rangeSet) {
+      return stIntersects(ref, rangeSet);
     }
 
     @Override
-    public <T> Expression stContain(BoundReference<T> ref, IndexRangeSet rangeSet) {
+    public <T> Expression stContains(BoundReference<T> ref, IndexRangeSet rangeSet) {
       Long index = (Long) ref.eval(struct);
       return rangeSet.match(index) ? alwaysTrue() : alwaysFalse();
     }
