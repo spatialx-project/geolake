@@ -188,7 +188,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
   @Test
   public void testGeometryTableRW() throws NoSuchTableException {
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
-    String[] geometryPatition = {" PARTITIONED BY (xz2(12, geo)) ", ""};
+    String[] geometryPartition = {" PARTITIONED BY (xz2(12, geo)) ", ""};
     String[] vectorizationSetting = {"true", "false"};
     Row[] rows = new Row[10];
     for (int k = 0; k < 10; k++) {
@@ -199,7 +199,7 @@ public class SmokeTest extends SparkExtensionsTestBase {
       rows[k] = new GenericRow(values);
     }
     for (String geometryEncoding : geometryEncodings) {
-      for (String partition: geometryPatition) {
+      for (String partition: geometryPartition) {
         for (String vectorizationEnabled: vectorizationSetting) {
           String hint = String.format("(geometryEncoding: %s; partition:%s; vectorizationEnabled: %s)",
             geometryEncoding, partition, vectorizationEnabled);
