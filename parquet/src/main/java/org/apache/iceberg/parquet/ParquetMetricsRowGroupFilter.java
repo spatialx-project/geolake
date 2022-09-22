@@ -21,6 +21,7 @@ package org.apache.iceberg.parquet;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -43,14 +44,18 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.hadoop.metadata.BlockMetaData;
 import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.locationtech.jts.geom.Envelope;
+import org.locationtech.jts.geom.Geometry;
 
 public class ParquetMetricsRowGroupFilter {
   private static final int IN_PREDICATE_LIMIT = 200;
 
   private final Schema schema;
   private final Expression expr;
+  private final List<Types.NestedField> geoFields;
 
   public ParquetMetricsRowGroupFilter(Schema schema, Expression unbound) {
     this(schema, unbound, true);
@@ -60,6 +65,10 @@ public class ParquetMetricsRowGroupFilter {
     this.schema = schema;
     StructType struct = schema.asStruct();
     this.expr = Binder.bind(struct, Expressions.rewriteNot(unbound), caseSensitive);
+    this.geoFields =
+        schema.columns().stream()
+            .filter(col -> col.type().equals(Types.GeometryType.get()))
+            .collect(Collectors.toList());
   }
 
   /**
@@ -80,6 +89,26 @@ public class ParquetMetricsRowGroupFilter {
     private Map<Integer, Statistics<?>> stats = null;
     private Map<Integer, Long> valueCounts = null;
     private Map<Integer, Function<Object, Object>> conversions = null;
+    private Map<Integer, Envelope> geoStats = null;
+
+    private void initialGeoBound(MessageType fileSchema, BlockMetaData rowGroup) {
+      for (Types.NestedField geoField : geoFields) {
+        org.apache.parquet.schema.Type geoType =
+            GeoParquetUtil.geomFieldFromFileSchema(fileSchema, geoField);
+        if (geoType == null || geoType.isPrimitive()) {
+          continue;
+        }
+        GroupType groupType = geoType.asGroupType();
+        if (GeoParquetUtil.isGroupTypeRepresentsGeometry(groupType)) {
+          GeoParquetEnums.GeometryEncoding geometryEncoding =
+              GeoParquetUtil.getGeometryEncodingOfGroupType(groupType);
+          Envelope envelope =
+              GeoParquetUtil.geomStatistics(
+                  geoType.getName(), rowGroup.getColumns(), geometryEncoding);
+          geoStats.put(geoField.fieldId(), envelope);
+        }
+      }
+    }
 
     private boolean eval(MessageType fileSchema, BlockMetaData rowGroup) {
       if (rowGroup.getRowCount() <= 0) {
@@ -89,6 +118,8 @@ public class ParquetMetricsRowGroupFilter {
       this.stats = Maps.newHashMap();
       this.valueCounts = Maps.newHashMap();
       this.conversions = Maps.newHashMap();
+      this.geoStats = Maps.newHashMap();
+      initialGeoBound(fileSchema, rowGroup);
       for (ColumnChunkMetaData col : rowGroup.getColumns()) {
         PrimitiveType colType = fileSchema.getType(col.getPath().toArray()).asPrimitiveType();
         if (colType.getId() != null) {
@@ -553,24 +584,42 @@ public class ParquetMetricsRowGroupFilter {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      Envelope envelope = geoStats.get(ref.fieldId());
+      if (envelope == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Geometry query = (Geometry) lit.value();
+      if (envelope.intersection(query.getEnvelopeInternal()).getArea() > 0) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      Envelope envelope = geoStats.get(ref.fieldId());
+      if (envelope == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Geometry query = (Geometry) lit.value();
+      if (query.getEnvelopeInternal().intersects(envelope)) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
-      // TODO: to be implemented
-      return ROWS_MIGHT_MATCH;
+      Envelope envelope = geoStats.get(ref.fieldId());
+      if (envelope == null) {
+        return ROWS_MIGHT_MATCH;
+      }
+      Geometry query = (Geometry) lit.value();
+      if (query.getEnvelopeInternal().covers(envelope)) {
+        return ROWS_MIGHT_MATCH;
+      }
+      return ROWS_CANNOT_MATCH;
     }
 
     @SuppressWarnings("unchecked")
