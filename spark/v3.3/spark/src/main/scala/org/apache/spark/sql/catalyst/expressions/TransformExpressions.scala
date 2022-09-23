@@ -166,7 +166,7 @@ case class IcebergXZ2Transform(child: Expression, resolution: Int) extends Icebe
   @transient lazy val xz2Func: Transform[Any, java.lang.Long] = Transforms.xz2[Any](resolution)
 
   override protected def nullSafeEval(value: Any): Any = {
-    val geom = GeometrySerializer.deserialize(value.asInstanceOf[ArrayData])
+    val geom = GeometrySerializer.deserialize(value)
     xz2Func(geom)
   }
 

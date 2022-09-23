@@ -64,6 +64,6 @@ public class IcebergSpark {
         .register(
             funcName,
             value -> xz2.apply(SparkValueConverter.convert(sourceIcebergType, value)),
-            sourceType);
+            DataTypes.LongType);
   }
 }
