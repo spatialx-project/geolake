@@ -191,8 +191,7 @@ public class Evaluator implements Serializable {
         Long index = (Long) valueExpr.eval(struct);
         return rangeSet.match(index);
       } catch (Exception e) {
-        LOG.warn(
-            "Failed to eval geometry partition filter with `Bound`: {}; Error: {}", valueExpr, e);
+        LOG.warn("Failed to eval geometry partition filter with `Bound`: {}", valueExpr, e);
         return true;
       }
     }
