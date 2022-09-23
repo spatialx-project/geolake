@@ -829,7 +829,7 @@ public class SparkParquetReaders {
       Binary binary = column.nextBinary();
       ByteBuffer buffer = binary.toByteBuffer();
       Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
-      return new GenericArrayData(GeometrySerializer.serialize(geom));
+      return GeometrySerializer.serialize(geom);
     }
   }
 
@@ -844,7 +844,7 @@ public class SparkParquetReaders {
       Binary binary = this.readWKB();
       ByteBuffer buffer = binary.toByteBuffer();
       Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
-      return new GenericArrayData(GeometrySerializer.serialize(geom));
+      return GeometrySerializer.serialize(geom);
     }
   }
 
@@ -857,7 +857,7 @@ public class SparkParquetReaders {
     @Override
     public ArrayData read(ArrayData reuse) {
       Geometry geom = this.readGeometry();
-      return new GenericArrayData(GeometrySerializer.serialize(geom));
+      return GeometrySerializer.serialize(geom);
     }
   }
 }
