@@ -30,6 +30,7 @@ import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromIcebergTable
 import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
+import org.apache.spark.sql.catalyst.expressions.GeometryExpressions
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
@@ -46,6 +47,9 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
   override def apply(extensions: SparkSessionExtensions): Unit = {
     // user defined types
     UDTRegistration.registerTypes()
+
+    // user defined functions
+    GeometryExpressions.registerFunctions(extensions)
 
     // parser extensions
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
