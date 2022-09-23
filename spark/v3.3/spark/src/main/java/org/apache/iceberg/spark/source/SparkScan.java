@@ -66,7 +66,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private StructType readSchema;
 
   SparkScan(
-      SparkSession spark,
+      JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
       Schema expectedSchema,
@@ -74,7 +74,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     Schema snapshotSchema = SnapshotUtil.schemaFor(table, readConf.branch());
     SparkSchemaUtil.validateMetadataColumnReferences(snapshotSchema, expectedSchema);
 
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -84,12 +84,34 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.branch = readConf.branch();
   }
 
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        expectedSchema,
+        filters);
+  }
+
   protected Table table() {
     return table;
   }
 
   protected String branch() {
     return branch;
+  }
+
+  protected SparkReadConf readConf() {
+    return readConf;
+  }
+
+  protected JavaSparkContext sparkContext() {
+    return sparkContext;
   }
 
   protected boolean caseSensitive() {

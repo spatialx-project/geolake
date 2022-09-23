@@ -36,6 +36,7 @@ import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Type;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.apache.parquet.column.statistics.Statistics;
@@ -164,6 +165,9 @@ public class ParquetMetricsRowGroupFilter {
       Long valueCount = valueCounts.get(id);
       if (valueCount == null) {
         // the column is not present and is all nulls
+        if (schema.findType(id) instanceof Types.GeometryType) {
+          return ROWS_MIGHT_MATCH;
+        }
         return ROWS_CANNOT_MATCH;
       }
 

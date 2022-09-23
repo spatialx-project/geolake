@@ -18,6 +18,10 @@
  */
 package org.apache.iceberg.spark;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Random;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
@@ -30,11 +34,6 @@ import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.Random;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -191,12 +190,14 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s ADD PARTITION FIELD xz2(12, geo) AS p1", tableName);
     sql("ALTER TABLE %s REPLACE PARTITION FIELD p1 WITH xz2(6, geo) as xz", tableName);
     sql("ALTER TABLE %s DROP PARTITION FIELD xz", tableName);
-    // can not drop a partitioned column due to this issue: https://github.com/apache/iceberg/issues/5676
+    // can not drop a partitioned column due to this issue:
+    // https://github.com/apache/iceberg/issues/5676
     // sql("ALTER TABLE %s DROP COLUMN geo", tableName);
     sql("DROP TABLE %s", tableName);
 
-    sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (xz2(12, geo))",
-      tableName);
+    sql(
+        "CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg PARTITIONED BY (xz2(12, geo))",
+        tableName);
     sql("DROP TABLE %s", tableName);
 
     sql("CREATE TABLE %s (id bigint, data string) USING iceberg", tableName);
@@ -223,24 +224,33 @@ public class SmokeTest extends SparkExtensionsTestBase {
       rows[k] = new GenericRow(values);
     }
     for (String geometryEncoding : geometryEncodings) {
-      for (String partition: geometryPartition) {
-        for (String vectorizationEnabled: vectorizationSetting) {
-          String hint = String.format("(geometryEncoding: %s; partition:%s; vectorizationEnabled: %s)",
-            geometryEncoding, partition, vectorizationEnabled);
+      for (String partition : geometryPartition) {
+        for (String vectorizationEnabled : vectorizationSetting) {
+          String hint =
+              String.format(
+                  "(geometryEncoding: %s; partition:%s; vectorizationEnabled: %s)",
+                  geometryEncoding, partition, vectorizationEnabled);
           sql("DROP TABLE IF EXISTS %s", tableName);
-          sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg " +
-              partition +
-            "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', " +
-            "'write.parquet.geometry.encoding' = '%s')", tableName, vectorizationEnabled, geometryEncoding);
+          sql(
+              "CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg "
+                  + partition
+                  + "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', "
+                  + "'write.parquet.geometry.encoding' = '%s')",
+              tableName,
+              vectorizationEnabled,
+              geometryEncoding);
           Dataset<Row> tableDf = spark.table(tableName);
           StructType schema = tableDf.schema();
           Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
           geomDf.writeTo(tableName).overwritePartitions();
-          Assert.assertEquals(hint + " Should have inserted 100 rows",
-            100L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
-          Assert.assertEquals(hint + " Row should have correct geo value",
-            rows[5].get(2).toString(),
-            scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
+          Assert.assertEquals(
+              hint + " Should have inserted 100 rows",
+              100L,
+              scalarSql("SELECT COUNT(*) FROM %s", tableName));
+          Assert.assertEquals(
+              hint + " Row should have correct geo value",
+              rows[5].get(2).toString(),
+              scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
         }
       }
     }
