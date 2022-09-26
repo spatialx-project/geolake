@@ -447,6 +447,10 @@ acceptedBreaks:
       old: "class org.apache.iceberg.expressions.Evaluator"
       new: "class org.apache.iceberg.expressions.Evaluator"
       justification: "add support for filtering xz index"
+    - code: "java.method.addedToInterface"
+      new: "method T org.apache.iceberg.transforms.SortOrderVisitor<T>::xz2(java.lang.String,\
+        \ int, int, org.apache.iceberg.SortDirection, org.apache.iceberg.NullOrder)"
+      justification: "Add support for xz2 transformation"
   release-base-0.13.0:
     org.apache.iceberg:iceberg-api:
     - code: "java.class.defaultSerializationChanged"

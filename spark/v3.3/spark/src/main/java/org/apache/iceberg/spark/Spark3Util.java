@@ -1025,6 +1025,16 @@ public class Spark3Util {
     }
 
     @Override
+    public String xz2(
+        String sourceName,
+        int sourceId,
+        int resolution,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
+      return String.format("xz2(%s, %s) %s %s", sourceName, resolution, direction, nullOrder);
+    }
+
+    @Override
     public String unknown(
         String sourceName,
         int sourceId,
