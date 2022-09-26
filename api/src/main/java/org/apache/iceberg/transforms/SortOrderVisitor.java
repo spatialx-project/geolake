@@ -44,6 +44,13 @@ public interface SortOrderVisitor<T> {
 
   T hour(String sourceName, int sourceId, SortDirection direction, NullOrder nullOrder);
 
+  T xz2(
+      String sourceName,
+      int sourceId,
+      int resolution,
+      SortDirection direction,
+      NullOrder nullOrder);
+
   default T unknown(
       String sourceName,
       int sourceId,
@@ -102,6 +109,11 @@ public interface SortOrderVisitor<T> {
       } else if (transform == Timestamps.HOUR || transform instanceof Hours) {
         results.add(
             visitor.hour(sourceName, field.sourceId(), field.direction(), field.nullOrder()));
+      } else if (transform instanceof ExtendedZCurve) {
+        int resolution = ((ExtendedZCurve<?>) transform).getResolution();
+        results.add(
+            visitor.xz2(
+                sourceName, field.sourceId(), resolution, field.direction(), field.nullOrder()));
       } else if (transform instanceof UnknownTransform) {
         results.add(
             visitor.unknown(
