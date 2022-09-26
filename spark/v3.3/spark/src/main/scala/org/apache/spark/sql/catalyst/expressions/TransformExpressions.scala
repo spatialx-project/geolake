@@ -29,12 +29,15 @@ import org.apache.iceberg.types.Type
 import org.apache.iceberg.types.Types
 import org.apache.iceberg.util.ByteBuffers
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
+import org.apache.spark.sql.catalyst.util.ArrayData
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer
 import org.apache.spark.sql.types.AbstractDataType
 import org.apache.spark.sql.types.BinaryType
 import org.apache.spark.sql.types.DataType
 import org.apache.spark.sql.types.Decimal
 import org.apache.spark.sql.types.DecimalType
 import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.types.StringType
 import org.apache.spark.sql.types.TimestampType
 import org.apache.spark.unsafe.types.UTF8String
@@ -152,6 +155,22 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
   }
 
   override def dataType: DataType = child.dataType
+
+  override protected def withNewChildInternal(newChild: Expression): Expression = {
+    copy(child = newChild)
+  }
+}
+
+case class IcebergXZ2Transform(child: Expression, resolution: Int) extends IcebergTransformExpression {
+
+  @transient lazy val xz2Func: Transform[Any, java.lang.Long] = Transforms.xz2[Any](resolution)
+
+  override protected def nullSafeEval(value: Any): Any = {
+    val geom = GeometrySerializer.deserialize(value.asInstanceOf[ArrayData])
+    xz2Func(geom)
+  }
+
+  override def dataType: DataType = LongType
 
   override protected def withNewChildInternal(newChild: Expression): Expression = {
     copy(child = newChild)

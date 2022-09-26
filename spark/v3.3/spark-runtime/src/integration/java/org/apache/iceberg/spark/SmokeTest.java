@@ -35,6 +35,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Random;
 
 public class SmokeTest extends SparkExtensionsTestBase {
 
@@ -188,14 +189,17 @@ public class SmokeTest extends SparkExtensionsTestBase {
   @Test
   public void testGeometryTableRW() throws NoSuchTableException {
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
-    String[] geometryPartition = {" PARTITIONED BY (xz2(12, geo)) ", ""};
+    String[] geometryPartition = {" PARTITIONED BY (xz2(2, geo)) ", ""};
     String[] vectorizationSetting = {"true", "false"};
-    Row[] rows = new Row[10];
-    for (int k = 0; k < 10; k++) {
+    Row[] rows = new Row[100];
+    Random random = new Random();
+    for (int k = 0; k < rows.length; k++) {
       Object[] values = new Object[3];
       values[0] = (long) k;
       values[1] = String.format("str_%d", k);
-      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k + 1));
+      double lon = random.nextDouble() * 200 - 100;
+      double lat = random.nextDouble() * 160 - 80;
+      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%f %f)", lon, lat));
       rows[k] = new GenericRow(values);
     }
     for (String geometryEncoding : geometryEncodings) {
@@ -212,10 +216,10 @@ public class SmokeTest extends SparkExtensionsTestBase {
           StructType schema = tableDf.schema();
           Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
           geomDf.writeTo(tableName).overwritePartitions();
-          Assert.assertEquals(hint + "Should have inserted 10 rows",
-            10L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
-          Assert.assertEquals(hint + "Row 5 should have geo POINT (5 6)",
-            "POINT (5 6)",
+          Assert.assertEquals(hint + " Should have inserted 100 rows",
+            100L, scalarSql("SELECT COUNT(*) FROM %s", tableName));
+          Assert.assertEquals(hint + " Row should have correct geo value",
+            rows[5].get(2).toString(),
             scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
         }
       }
