@@ -419,7 +419,7 @@ public class ManifestEvaluator {
             "The value geometry partition should be Long, not " + ref.type());
       }
       long lower = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
-      long upper = Conversions.fromByteBuffer(ref.type(), fieldStats.lowerBound());
+      long upper = Conversions.fromByteBuffer(ref.type(), fieldStats.upperBound());
       if (rangeSet.match(lower, upper)) {
         return ROWS_MIGHT_MATCH;
       }

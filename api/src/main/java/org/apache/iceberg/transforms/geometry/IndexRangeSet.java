@@ -188,8 +188,7 @@ public class IndexRangeSet {
      * @return boolean
      */
     public boolean match(long lowerBound, long upperBound) {
-      return (lowerBound >= lower && lowerBound <= upper)
-          || (upperBound >= lower && upperBound <= upper);
+      return lowerBound <= upper && upperBound >= lower;
     }
 
     @Override
