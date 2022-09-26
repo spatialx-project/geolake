@@ -344,7 +344,6 @@ public class GeoParquetValueWriters {
 
     @Override
     public void write(int parentRepetition, T obj) {
-      resetState();
       if (obj instanceof ByteBuffer) {
         writeByteBuffer(parentRepetition, (ByteBuffer) obj);
       } else if (obj instanceof Geometry) {
@@ -361,6 +360,7 @@ public class GeoParquetValueWriters {
     }
 
     protected void writeJtsGeometry(int parentRepetition, Geometry geom) {
+      resetState();
       metricsBuilder.addJtsGeometry(geom);
       if (geom instanceof Point) {
         typeColumnWriter.write(parentRepetition, WKBConstants.wkbPoint);

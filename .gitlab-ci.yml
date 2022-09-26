@@ -28,7 +28,7 @@ default:
 core_style:
   stage: checking
   script:
-    - './gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleIntegration checkstyleJmh'
+    - './gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleIntegration checkstyleJmh scalastyleMainCheck scalastyleTestCheck'
   only:
     - merge_requests
 
