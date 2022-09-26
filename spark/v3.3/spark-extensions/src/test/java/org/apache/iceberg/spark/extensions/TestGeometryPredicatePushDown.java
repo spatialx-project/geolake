@@ -71,7 +71,7 @@ public class TestGeometryPredicatePushDown extends SparkExtensionsTestBase {
         "SELECT * FROM "
             + tableName
             + " WHERE data > 'str_5' AND "
-            + "IcebergSTContains(IcebergSTGeomFromText('POLYGON((0 0, 80 0, 80 80, 0 80, 0 0))'), geo) "
+            + "IcebergSTContains(IcebergSTGeomFromText('POLYGON((50 50, 80 50, 80 80, 50 80, 50 50))'), geo) "
             + "ORDER BY id";
     List<Object[]> expectedRows = sql(testSql);
 
