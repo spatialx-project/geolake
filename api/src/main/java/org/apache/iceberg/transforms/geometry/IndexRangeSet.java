@@ -184,7 +184,7 @@ public class IndexRangeSet {
      * return true if this interval overlapped with the given bounds, false otherwise
      *
      * @param lowerBound the smallest xz2 index
-     * @param upperBound the smallest xz2 index
+     * @param upperBound the largest xz2 index
      * @return boolean
      */
     public boolean match(long lowerBound, long upperBound) {

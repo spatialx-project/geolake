@@ -47,7 +47,7 @@ abstract class IcebergGeometryPredicate extends BinaryExpression with Predicate 
   def evalGeometry(leftGeometry: Geometry, rightGeometry: Geometry): Any
 }
 
-case class IcebergSTContains(left: Expression, right: Expression) extends IcebergGeometryPredicate {
+case class IcebergSTCovers(left: Expression, right: Expression) extends IcebergGeometryPredicate {
 
   override def evalGeometry(leftGeometry: Geometry, rightGeometry: Geometry): Any = leftGeometry.covers(rightGeometry)
 
@@ -55,7 +55,7 @@ case class IcebergSTContains(left: Expression, right: Expression) extends Iceber
     copy(left = newLeft, right = newRight)
 }
 
-case class IcebergSTWithin(left: Expression, right: Expression) extends IcebergGeometryPredicate {
+case class IcebergSTCoveredBy(left: Expression, right: Expression) extends IcebergGeometryPredicate {
 
   override def evalGeometry(leftGeometry: Geometry, rightGeometry: Geometry): Any = leftGeometry.within(rightGeometry)
 
@@ -106,15 +106,15 @@ case class IcebergSTAsText(child: Expression) extends UnaryExpression with Codeg
 
 object GeometryExpressions {
   private val functions = Seq(
-    (FunctionIdentifier("IcebergSTContains"),
-      new ExpressionInfo(classOf[IcebergSTContains].getName, "IcebergSTContains"),
-      (children: Seq[Expression]) => IcebergSTContains(children.head, children.last)),
+    (FunctionIdentifier("IcebergSTCovers"),
+      new ExpressionInfo(classOf[IcebergSTCovers].getName, "IcebergSTCovers"),
+      (children: Seq[Expression]) => IcebergSTCovers(children.head, children.last)),
     (FunctionIdentifier("IcebergSTIntersects"),
       new ExpressionInfo(classOf[IcebergSTIntersects].getName, "IcebergSTIntersects"),
       (children: Seq[Expression]) => IcebergSTIntersects(children.head, children.last)),
-    (FunctionIdentifier("IcebergSTWithin"),
-      new ExpressionInfo(classOf[IcebergSTWithin].getName, "IcebergSTWithin"),
-      (children: Seq[Expression]) => IcebergSTWithin(children.head, children.last)),
+    (FunctionIdentifier("IcebergSTCoveredBy"),
+      new ExpressionInfo(classOf[IcebergSTCoveredBy].getName, "IcebergSTCoveredBy"),
+      (children: Seq[Expression]) => IcebergSTCoveredBy(children.head, children.last)),
     (FunctionIdentifier("IcebergSTGeomFromText"),
       new ExpressionInfo(classOf[IcebergSTGeomFromText].getName, "IcebergSTGeomFromText"),
       (children: Seq[Expression]) => IcebergSTGeomFromText(children.head)),

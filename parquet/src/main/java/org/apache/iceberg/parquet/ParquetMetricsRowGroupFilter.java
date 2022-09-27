@@ -49,6 +49,7 @@ import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class ParquetMetricsRowGroupFilter {
   private static final int IN_PREDICATE_LIMIT = 200;
@@ -583,43 +584,45 @@ public class ParquetMetricsRowGroupFilter {
       return ROWS_MIGHT_MATCH;
     }
 
-    @Override
-    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
+    private <T> Boolean geometryFilter(
+        BoundReference<T> ref, Literal<T> lit, Expression.Operation op) {
       Envelope envelope = geoStats.get(ref.fieldId());
       if (envelope == null) {
         return ROWS_MIGHT_MATCH;
       }
-      Geometry query = (Geometry) lit.value();
-      if (envelope.intersection(query.getEnvelopeInternal()).getArea() > 0) {
-        return ROWS_MIGHT_MATCH;
+      Geometry metricBound = new GeometryFactory().toGeometry(envelope);
+      Geometry queryWindow = (Geometry) lit.to(Types.GeometryType.get()).value();
+      switch (op) {
+        case ST_COVERS:
+          if (metricBound.covers(queryWindow)) {
+            return ROWS_MIGHT_MATCH;
+          }
+          break;
+        case ST_COVEREDBY:
+        case ST_INTERSECTS:
+          if (metricBound.intersects(queryWindow)) {
+            return ROWS_MIGHT_MATCH;
+          }
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported operation: " + op);
       }
       return ROWS_CANNOT_MATCH;
+    }
+
+    @Override
+    public <T> Boolean stCoveredBy(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVEREDBY);
     }
 
     @Override
     public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
-      Envelope envelope = geoStats.get(ref.fieldId());
-      if (envelope == null) {
-        return ROWS_MIGHT_MATCH;
-      }
-      Geometry query = (Geometry) lit.value();
-      if (query.getEnvelopeInternal().intersects(envelope)) {
-        return ROWS_MIGHT_MATCH;
-      }
-      return ROWS_CANNOT_MATCH;
+      return geometryFilter(ref, lit, Expression.Operation.ST_INTERSECTS);
     }
 
     @Override
-    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
-      Envelope envelope = geoStats.get(ref.fieldId());
-      if (envelope == null) {
-        return ROWS_MIGHT_MATCH;
-      }
-      Geometry query = (Geometry) lit.value();
-      if (query.getEnvelopeInternal().covers(envelope)) {
-        return ROWS_MIGHT_MATCH;
-      }
-      return ROWS_CANNOT_MATCH;
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVERS);
     }
 
     @SuppressWarnings("unchecked")

@@ -608,11 +608,11 @@ public class TestExpressionUtil {
             "POLYGON ((82.55115 36.778162, 82.607718 36.720354, 82.632968 36.690291, 82.636987 36.682906, 82.55115 36.778162))")) {
       Geometry bound = TypeUtil.GeometryUtils.wkt2geometry(query);
       assertEquals(
-          Expressions.stContains("geom", "(geometry)"),
-          ExpressionUtil.sanitize(Expressions.stContains("geom", bound)));
+          Expressions.stCovers("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stCovers("geom", bound)));
       assertEquals(
-          Expressions.stWithin("geom", "(geometry)"),
-          ExpressionUtil.sanitize(Expressions.stWithin("geom", bound)));
+          Expressions.stCoveredBy("geom", "(geometry)"),
+          ExpressionUtil.sanitize(Expressions.stCoveredBy("geom", bound)));
       assertEquals(
           Expressions.stIntersects("geom", "(geometry)"),
           ExpressionUtil.sanitize(Expressions.stIntersects("geom", bound)));
@@ -620,7 +620,7 @@ public class TestExpressionUtil {
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom CONTAIN (geometry)",
-          ExpressionUtil.toSanitizedString(Expressions.stContains("geom", bound)));
+          ExpressionUtil.toSanitizedString(Expressions.stCovers("geom", bound)));
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom INTERSECT (geometry)",
@@ -628,7 +628,7 @@ public class TestExpressionUtil {
       Assert.assertEquals(
           "Sanitized geometry should be identical except for descriptive literal",
           "geom WITHIN (geometry)",
-          ExpressionUtil.toSanitizedString(Expressions.stWithin("geom", bound)));
+          ExpressionUtil.toSanitizedString(Expressions.stCoveredBy("geom", bound)));
     }
   }
 
