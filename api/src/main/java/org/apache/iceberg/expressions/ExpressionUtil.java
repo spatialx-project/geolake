@@ -296,11 +296,11 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal(), nowMicros, today);
-        case ST_IN:
+        case ST_COVEREDBY:
           return term + " WITHIN " + sanitize(pred.literal(), nowMicros, today);
         case ST_INTERSECTS:
           return term + " INTERSECT " + sanitize(pred.literal(), nowMicros, today);
-        case ST_CONTAINS:
+        case ST_COVERS:
           return term + " CONTAIN " + sanitize(pred.literal(), nowMicros, today);
         default:
           throw new UnsupportedOperationException(

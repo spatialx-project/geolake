@@ -251,7 +251,7 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_MATCH;
     }
 
@@ -261,7 +261,7 @@ public class ParquetBloomRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
+    public <T> Boolean stCoveredBy(BoundReference<T> ref, Literal<T> lit) {
       return ROWS_MIGHT_MATCH;
     }
 

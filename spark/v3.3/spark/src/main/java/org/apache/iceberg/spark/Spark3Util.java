@@ -642,9 +642,9 @@ public class Spark3Util {
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
           return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
-        case ST_CONTAINS:
+        case ST_COVERS:
           return "st_contains(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
-        case ST_WITHIN:
+        case ST_COVEREDBY:
           return "st_within(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
         case ST_INTERSECTS:
           return "st_intersects(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
