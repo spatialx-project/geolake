@@ -36,7 +36,6 @@ import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
-import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.BinaryUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
