@@ -30,11 +30,12 @@ import org.apache.iceberg.transforms.geometry.XZ2SFCurving;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.iceberg.util.SerializableFunction;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 
 // xz2-ordering index
-class ExtendedZCurve<T> implements Transform<T, Long> {
+class ExtendedZCurve<T> implements Transform<T, Long>, SerializableFunction<T, Long> {
   private final int resolution;
   private final XZ2SFCurving xz2sfc;
 
@@ -43,11 +44,15 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
     this.xz2sfc = new XZ2SFCurving(resolution);
   }
 
-  static ExtendedZCurve get(Type type, int resolution) {
+  static ExtendedZCurve get(int resolution) {
     Preconditions.checkArgument(
         resolution > 0, "Invalid truncate width: %s (must be > 0)", resolution);
+    return new ExtendedZCurve(resolution);
+  }
+
+  static ExtendedZCurve get(Type type, int resolution) {
     if (type.typeId() == Type.TypeID.GEOMETRY) {
-      return new ExtendedZCurve(resolution);
+      return get(resolution);
     } else {
       throw new UnsupportedOperationException("Cannot implement xz partition on type: " + type);
     }
@@ -71,6 +76,11 @@ class ExtendedZCurve<T> implements Transform<T, Long> {
     Envelope envelope = geom.getEnvelopeInternal();
     return xz2sfc.index(
         envelope.getMinX(), envelope.getMinY(), envelope.getMaxX(), envelope.getMaxY());
+  }
+
+  @Override
+  public SerializableFunction<T, Long> bind(Type type) {
+    return this;
   }
 
   @Override
