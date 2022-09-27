@@ -78,7 +78,6 @@ public class TestTableWithGeometry {
   private static Table table = null;
   private static final int N = 20;
   private final String encoding;
-  private String dataFilePath;
 
   public TestTableWithGeometry(String encoding) {
     this.encoding = encoding;
@@ -144,7 +143,7 @@ public class TestTableWithGeometry {
     OffsetDateTime now = OffsetDateTime.now();
     int ts = (int) now.toEpochSecond();
     StructLike partition = TestHelpers.Row.of(ts / 3600);
-    dataFilePath = String.format(warehousePath + "/%d.parquet", ts);
+    String dataFilePath = String.format(warehousePath + "/%d.parquet", ts);
     OutputFile outputFile = table.io().newOutputFile(dataFilePath);
     DataWriter<Object> writer =
         Parquet.writeData(outputFile)
@@ -197,8 +196,8 @@ public class TestTableWithGeometry {
     // test reading with geometry filter
     Geometry geometry =
         TypeUtil.GeometryUtils.wkt2geometry("POLYGON ((0 0, 0 10, 10 10, 10 0, 0 0))");
-    records = readTable(Expressions.stWithin(geometryName, geometry));
-    Assert.assertEquals("returned size should be 9", 9, records.size());
+    records = readTable(Expressions.stCoveredBy(geometryName, geometry));
+    Assert.assertEquals("returned size should be 11", 11, records.size());
 
     dropTable();
   }

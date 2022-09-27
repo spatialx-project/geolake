@@ -161,9 +161,9 @@ public class ExpressionUtil {
         case NOT_EQ:
         case STARTS_WITH:
         case NOT_STARTS_WITH:
-        case ST_WITHIN:
+        case ST_COVEREDBY:
         case ST_INTERSECTS:
-        case ST_CONTAINS:
+        case ST_COVERS:
           return new UnboundPredicate<>(pred.op(), pred.term(), (T) sanitize(pred.literal()));
         case IN:
         case NOT_IN:
@@ -266,11 +266,11 @@ public class ExpressionUtil {
           return term + " STARTS WITH " + sanitize(pred.literal());
         case NOT_STARTS_WITH:
           return term + " NOT STARTS WITH " + sanitize(pred.literal());
-        case ST_WITHIN:
+        case ST_COVEREDBY:
           return term + " WITHIN " + sanitize(pred.literal());
         case ST_INTERSECTS:
           return term + " INTERSECT " + sanitize(pred.literal());
-        case ST_CONTAINS:
+        case ST_COVERS:
           return term + " CONTAIN " + sanitize(pred.literal());
         default:
           throw new UnsupportedOperationException(
