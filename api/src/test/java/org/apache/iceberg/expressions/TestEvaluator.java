@@ -37,18 +37,29 @@ import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
 import static org.apache.iceberg.expressions.Expressions.predicate;
-import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stCoveredBy;
+import static org.apache.iceberg.expressions.Expressions.stCovers;
 import static org.apache.iceberg.expressions.Expressions.stIntersects;
-import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.BASE_LINE_STRING;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.BASE_POINT;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.BASE_POLYGON;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.COVERED_BY_BASE_LINESTRING;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.COVERED_BY_BASE_POLYGON;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.COVERS_BASE_LINESTRING;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.COVERS_BASE_POLYGON;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.DISJOINT_WITH_BASE_LINESTRING;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.DISJOINT_WITH_BASE_POINT;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.DISJOINT_WITH_BASE_POLYGON;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.GEOM_CONTAINS_BASE_POINT;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.ONLY_INTERSECT_WITH_BASE_LINESTRING;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.RecordEvalData.ONLY_INTERSECT_WITH_BASE_POLYGON;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Random;
 import org.apache.avro.util.Utf8;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
@@ -758,38 +769,121 @@ public class TestEvaluator {
         .hasMessageContaining("Invalid value for conversion to type int");
   }
 
-  @Test
-  public void testStInAndStContain() {
-    Random random = new Random();
-    ByteBuffer worldBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(WORLD_WKT);
-    String northHalfWorld = "POLYGON((-180 0, -180 90, 180 90, 180 0, -180 0))";
-    ByteBuffer northHalfWorldBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(northHalfWorld);
-
-    for (int i = 0; i < 50; i++) {
-      double longitude = random.nextDouble() * 360 - 180;
-      double latitude = random.nextDouble() * 180 - 90;
-      String wkt = String.format("POINT(%.2f %.2f)", longitude, latitude);
-      ByteBuffer pointBuffer = TypeUtil.GeometryUtils.wkt2byteBuffer(wkt);
-      Geometry point = TypeUtil.GeometryUtils.byteBuffer2geometry(pointBuffer);
-
-      Evaluator inEvaluator = new Evaluator(GEOMETRY_STRUCT, stWithin("geom", WORLD_GEOM));
-      Assert.assertTrue(
-          "every single point in world => true", inEvaluator.eval(TestHelpers.Row.of(pointBuffer)));
-
-      Evaluator containEvaluator = new Evaluator(GEOMETRY_STRUCT, stContains("geom", point));
-      Assert.assertTrue(
-          "world contains every single point=> true",
-          containEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
-
-      Evaluator intersectEvaluator = new Evaluator(GEOMETRY_STRUCT, stIntersects("geom", point));
-      Assert.assertTrue(
-          "world is overlapped with every single point => true",
-          intersectEvaluator.eval(TestHelpers.Row.of(worldBuffer)));
-
-      Assert.assertEquals(
-          wkt + " is in the northern Hemisphere => " + (latitude > 0),
-          latitude > 0,
-          intersectEvaluator.eval(TestHelpers.Row.of(northHalfWorldBuffer)));
+  private boolean evalStExpression(Expression.Operation op, Geometry data, Geometry query) {
+    UnboundPredicate<Geometry> pred = null;
+    switch (op) {
+      case ST_COVERS:
+        pred = stCovers("geom", query);
+        break;
+      case ST_COVEREDBY:
+        pred = stCoveredBy("geom", query);
+        break;
+      case ST_INTERSECTS:
+        pred = stIntersects("geom", query);
+        break;
     }
+    return new Evaluator(GEOMETRY_STRUCT, pred).eval(TestHelpers.Row.of(data));
+  }
+
+  @Test
+  public void testStCovers() {
+    TestGeometryHelpers.StExpressionTester<Geometry, Geometry> tester =
+        new TestGeometryHelpers.StExpressionTester<>();
+    tester
+        .withOperation(Expression.Operation.ST_COVERS)
+        .withEvaluator(this::evalStExpression)
+        .withData(BASE_POINT)
+        .withMatchedQuery(BASE_POINT)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POINT)
+        .withUnmatchedQuery(GEOM_CONTAINS_BASE_POINT)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_LINE_STRING)
+        .withMatchedQuery(BASE_LINE_STRING)
+        .withMatchedQuery(COVERED_BY_BASE_LINESTRING)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_LINESTRING)
+        .withUnmatchedQuery(ONLY_INTERSECT_WITH_BASE_LINESTRING)
+        .withUnmatchedQuery(COVERS_BASE_LINESTRING)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_POLYGON)
+        .withMatchedQuery(BASE_POLYGON)
+        .withMatchedQuery(COVERED_BY_BASE_POLYGON)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POLYGON)
+        .withUnmatchedQuery(ONLY_INTERSECT_WITH_BASE_POLYGON)
+        .withUnmatchedQuery(COVERS_BASE_POLYGON)
+        .run();
+  }
+
+  @Test
+  public void testStCoveredBy() {
+    TestGeometryHelpers.StExpressionTester<Geometry, Geometry> tester =
+        new TestGeometryHelpers.StExpressionTester<>();
+    tester
+        .withOperation(Expression.Operation.ST_COVEREDBY)
+        .withEvaluator(this::evalStExpression)
+        .withData(BASE_POINT)
+        .withMatchedQuery(BASE_POINT)
+        .withMatchedQuery(GEOM_CONTAINS_BASE_POINT)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POINT)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_LINE_STRING)
+        .withMatchedQuery(BASE_LINE_STRING)
+        .withMatchedQuery(COVERS_BASE_LINESTRING)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_LINESTRING)
+        .withUnmatchedQuery(ONLY_INTERSECT_WITH_BASE_LINESTRING)
+        .withUnmatchedQuery(COVERED_BY_BASE_LINESTRING)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_POLYGON)
+        .withMatchedQuery(BASE_POLYGON)
+        .withMatchedQuery(COVERS_BASE_POLYGON)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POLYGON)
+        .withUnmatchedQuery(ONLY_INTERSECT_WITH_BASE_POLYGON)
+        .withUnmatchedQuery(COVERED_BY_BASE_POLYGON)
+        .run();
+  }
+
+  @Test
+  public void testStIntersects() {
+    TestGeometryHelpers.StExpressionTester<Geometry, Geometry> tester =
+        new TestGeometryHelpers.StExpressionTester<>();
+    tester
+        .withOperation(Expression.Operation.ST_INTERSECTS)
+        .withEvaluator(this::evalStExpression)
+        .withData(BASE_POINT)
+        .withMatchedQuery(BASE_POINT)
+        .withMatchedQuery(GEOM_CONTAINS_BASE_POINT)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POINT)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_LINE_STRING)
+        .withMatchedQuery(BASE_LINE_STRING)
+        .withMatchedQuery(COVERS_BASE_LINESTRING)
+        .withMatchedQuery(ONLY_INTERSECT_WITH_BASE_LINESTRING)
+        .withMatchedQuery(COVERED_BY_BASE_LINESTRING)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_LINESTRING)
+        .run();
+
+    tester
+        .resetQuery()
+        .withData(BASE_POLYGON)
+        .withMatchedQuery(BASE_POLYGON)
+        .withMatchedQuery(COVERS_BASE_POLYGON)
+        .withMatchedQuery(ONLY_INTERSECT_WITH_BASE_POLYGON)
+        .withMatchedQuery(COVERED_BY_BASE_POLYGON)
+        .withUnmatchedQuery(DISJOINT_WITH_BASE_POLYGON)
+        .run();
   }
 }

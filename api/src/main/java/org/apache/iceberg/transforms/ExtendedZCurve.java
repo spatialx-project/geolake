@@ -106,11 +106,11 @@ class ExtendedZCurve<T> implements Transform<T, Long>, SerializableFunction<T, L
       return null;
     }
     switch (op) {
-      case ST_WITHIN:
+      case ST_COVEREDBY:
       case ST_INTERSECTS:
         return new UnboundRangePredicate(
             predicate.op(), Expressions.ref(name), new IndexRangeSet(intervals));
-      case ST_CONTAINS:
+      case ST_COVERS:
         IndexRangeSet rangeSet =
             new IndexRangeSet(
                 intervals.stream()
@@ -129,7 +129,7 @@ class ExtendedZCurve<T> implements Transform<T, Long>, SerializableFunction<T, L
       return null;
     }
     switch (op) {
-      case ST_WITHIN:
+      case ST_COVEREDBY:
       case ST_INTERSECTS:
         IndexRangeSet rangeSet =
             new IndexRangeSet(
@@ -137,7 +137,7 @@ class ExtendedZCurve<T> implements Transform<T, Long>, SerializableFunction<T, L
                     .filter(r -> r.getLevel().equals(IndexRangeSet.IntervalLevel.WITHIN))
                     .collect(Collectors.toList()));
         return new UnboundRangePredicate(predicate.op(), Expressions.ref(name), rangeSet);
-      case ST_CONTAINS:
+      case ST_COVERS:
         return null;
     }
     return null;
