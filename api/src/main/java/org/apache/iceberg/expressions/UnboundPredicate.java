@@ -267,11 +267,11 @@ public class UnboundPredicate<T> extends Predicate<T, UnboundTerm<T>>
       case NOT_IN:
         return term() + " not in (" + COMMA.join(literals()) + ")";
       case ST_WITHIN:
-        return term() + " in " + literal();
+        return term() + " within " + literal();
       case ST_INTERSECTS:
-        return term() + " intersect " + literal();
+        return term() + " intersects " + literal();
       case ST_CONTAINS:
-        return term() + " contain " + literal();
+        return term() + " contains " + literal();
       default:
         return "Invalid predicate: operation = " + op();
     }
