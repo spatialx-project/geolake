@@ -48,6 +48,8 @@ public class Transforms {
         return Truncate.get(parsedWidth);
       } else if (name.equalsIgnoreCase("bucket")) {
         return Bucket.get(parsedWidth);
+      } else if (name.equals("xz2")) {
+        return ExtendedZCurve.get(parsedWidth);
       }
     }
 
