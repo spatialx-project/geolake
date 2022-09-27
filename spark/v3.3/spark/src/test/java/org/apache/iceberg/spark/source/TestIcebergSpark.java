@@ -289,12 +289,12 @@ public class TestIcebergSpark {
         spark
             .sql(
                 "SELECT "
-                    + "IcebergSTContains(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
                     + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
-                    + "IcebergSTWithin(IcebergSTGeomFromText('POINT (1 1)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))')),"
-                    + "IcebergSTContains(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 2)')),"
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (1 1)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))')),"
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 2)')),"
                     + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 3)')),"
-                    + "IcebergSTWithin(IcebergSTGeomFromText('POINT (3 3)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'))")
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (3 3)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'))")
             .collectAsList();
     Assert.assertEquals(1, results.size());
     Row result = results.get(0);

@@ -38,10 +38,10 @@ import org.apache.parquet.io.PositionOutputStream;
 import org.apache.parquet.io.SeekableInputStream;
 
 /** Methods in this class translate from the IO API to Parquet's IO API. */
-class ParquetIO {
+public class ParquetIO {
   private ParquetIO() {}
 
-  static InputFile file(org.apache.iceberg.io.InputFile file) {
+  public static InputFile file(org.apache.iceberg.io.InputFile file) {
     // TODO: use reflection to avoid depending on classes from iceberg-hadoop
     // TODO: use reflection to avoid depending on classes from hadoop
     if (file instanceof HadoopInputFile) {

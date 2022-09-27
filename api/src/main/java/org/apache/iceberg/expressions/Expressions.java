@@ -191,12 +191,12 @@ public class Expressions {
     return new UnboundPredicate<>(Expression.Operation.NOT_EQ, expr, value);
   }
 
-  public static <T> UnboundPredicate<T> stWithin(String name, T value) {
-    return new UnboundPredicate<>(Operation.ST_WITHIN, ref(name), value);
+  public static <T> UnboundPredicate<T> stCoveredBy(String name, T value) {
+    return new UnboundPredicate<>(Operation.ST_COVEREDBY, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> stWithin(UnboundTerm<T> expr, T value) {
-    return new UnboundPredicate<>(Operation.ST_WITHIN, expr, value);
+  public static <T> UnboundPredicate<T> stCoveredBy(UnboundTerm<T> expr, T value) {
+    return new UnboundPredicate<>(Operation.ST_COVEREDBY, expr, value);
   }
 
   public static <T> UnboundPredicate<T> stIntersects(String name, T value) {
@@ -207,12 +207,12 @@ public class Expressions {
     return new UnboundPredicate<>(Operation.ST_INTERSECTS, expr, value);
   }
 
-  public static <T> UnboundPredicate<T> stContains(String name, T value) {
-    return new UnboundPredicate<>(Operation.ST_CONTAINS, ref(name), value);
+  public static <T> UnboundPredicate<T> stCovers(String name, T value) {
+    return new UnboundPredicate<>(Operation.ST_COVERS, ref(name), value);
   }
 
-  public static <T> UnboundPredicate<T> stContains(UnboundTerm<T> expr, T value) {
-    return new UnboundPredicate<>(Operation.ST_CONTAINS, expr, value);
+  public static <T> UnboundPredicate<T> stCovers(UnboundTerm<T> expr, T value) {
+    return new UnboundPredicate<>(Operation.ST_COVERS, expr, value);
   }
 
   public static UnboundPredicate<String> startsWith(String name, String value) {

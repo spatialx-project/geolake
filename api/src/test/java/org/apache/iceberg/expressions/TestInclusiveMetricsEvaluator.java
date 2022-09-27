@@ -34,16 +34,27 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stCoveredBy;
+import static org.apache.iceberg.expressions.Expressions.stCovers;
 import static org.apache.iceberg.expressions.Expressions.stIntersects;
-import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.DISJOINT_WINDOWS;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_METRIC_WINDOW;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_X_MAX;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_X_MIN;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_Y_MAX;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_Y_MIN;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.INSIDE_WINDOWS;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.OVERLAPPED_BUT_NOT_INSIDE_WINDOWS;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.TOUCHED_LINES;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.TOUCHED_POINTS;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.TOUCHED_WINDOWS;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.util.List;
-import java.util.Random;
+import java.util.stream.Stream;
 import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
@@ -58,9 +69,7 @@ import org.apache.iceberg.types.Types.StringType;
 import org.apache.iceberg.util.UnicodeUtil;
 import org.junit.Assert;
 import org.junit.Test;
-import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestInclusiveMetricsEvaluator {
   private static final Schema SCHEMA =
@@ -178,11 +187,6 @@ public class TestInclusiveMetricsEvaluator {
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "abc")),
           // upper bounds
           ImmutableMap.of(3, toByteBuffer(StringType.get(), "イロハニホヘト")));
-
-  private static final double GEOM_X_MIN = -10.0;
-  private static final double GEOM_Y_MIN = -1.0;
-  private static final double GEOM_X_MAX = 10.0;
-  private static final double GEOM_Y_MAX = 1.0;
 
   private static final DataFile FILE_5 =
       new TestDataFile(
@@ -856,47 +860,106 @@ public class TestInclusiveMetricsEvaluator {
     Assert.assertTrue("Should read: notIn on no nulls column", shouldRead);
   }
 
-  private Geometry generateGeom(double xmin, double xmax, double ymin, double ymax) {
-    Envelope envelope = new Envelope(xmin, xmax, ymin, ymax);
-    return (new GeometryFactory()).toGeometry(envelope);
+  @Test
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public void testStCoveredBy() {
+    Stream<Geometry> geometryStream =
+        Stream.of(
+                TOUCHED_POINTS,
+                TOUCHED_LINES,
+                TOUCHED_WINDOWS,
+                INSIDE_WINDOWS,
+                OVERLAPPED_BUT_NOT_INSIDE_WINDOWS)
+            .flatMap(Stream::of);
+    geometryStream.forEach(
+        queryWindow -> {
+          boolean shouldRead =
+              new InclusiveMetricsEvaluator(SCHEMA, stCoveredBy("geom", queryWindow), true)
+                  .eval(FILE_5);
+          Assert.assertTrue(
+              String.format(
+                  "Should read: data in %s may coveredBy %s",
+                  GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+              shouldRead);
+        });
+
+    for (Geometry queryWindow : DISJOINT_WINDOWS) {
+      boolean shouldRead =
+          new InclusiveMetricsEvaluator(SCHEMA, stCoveredBy("geom", queryWindow), true)
+              .eval(FILE_5);
+      Assert.assertFalse(
+          String.format(
+              "Should not read: data in %s can not coveredBy %s",
+              GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+          shouldRead);
+    }
   }
 
   @Test
   @SuppressWarnings("checkstyle:CyclomaticComplexity")
-  public void testGeometryExpressions() {
-    Random random = new Random();
-    for (int i = 0; i < 50; i++) {
-      double xscale = 2 * (GEOM_X_MAX - GEOM_X_MIN);
-      double yscale = 2 * (GEOM_Y_MAX - GEOM_Y_MIN);
-      double xmin = random.nextDouble() * xscale + GEOM_X_MIN;
-      double xmax = xmin + random.nextDouble() * xscale;
-      double ymin = random.nextDouble() * yscale + GEOM_Y_MIN;
-      double ymax = ymin + random.nextDouble() * yscale;
-      Geometry queryWindow = generateGeom(xmin, xmax, ymin, ymax);
-
-      Boolean isIn =
-          new InclusiveMetricsEvaluator(SCHEMA, stWithin("geom", queryWindow), true).eval(FILE_5);
-      Boolean isIntersect =
+  public void testStIntersects() {
+    for (Geometry queryWindow : DISJOINT_WINDOWS) {
+      boolean shouldRead =
           new InclusiveMetricsEvaluator(SCHEMA, stIntersects("geom", queryWindow), true)
               .eval(FILE_5);
-      Boolean isContain =
-          new InclusiveMetricsEvaluator(SCHEMA, stContains("geom", queryWindow), true).eval(FILE_5);
-
-      Boolean xOverlap =
-          (xmin >= GEOM_X_MIN && xmin <= GEOM_X_MAX) || (xmax >= GEOM_X_MIN && xmax <= GEOM_X_MAX);
-      Boolean yOverlap =
-          (ymin >= GEOM_Y_MIN && ymin <= GEOM_Y_MAX) || (ymax >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX);
-      if (xOverlap && yOverlap) {
-        Assert.assertTrue("Should read: stWithin matches", isIn);
-        Assert.assertTrue("Should read: stIntersects matches", isIntersect);
-      } else {
-        Assert.assertFalse("Should not read: stWithin not matches", isIn);
-        Assert.assertFalse("Should not read: stIntersects not matches", isIntersect);
-      }
-
-      Boolean contain =
-          xmin >= GEOM_X_MIN && xmax <= GEOM_X_MAX && ymin >= GEOM_Y_MIN && ymax <= GEOM_Y_MAX;
-      Assert.assertEquals("stContains should work as expected", contain, isContain);
+      Assert.assertFalse(
+          String.format(
+              "Should not read: data in %s can not intersects with ",
+              GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+          shouldRead);
     }
+
+    Stream<Geometry> geometryStream =
+        Stream.of(
+                TOUCHED_POINTS,
+                TOUCHED_LINES,
+                TOUCHED_WINDOWS,
+                INSIDE_WINDOWS,
+                OVERLAPPED_BUT_NOT_INSIDE_WINDOWS)
+            .flatMap(Stream::of);
+    geometryStream.forEach(
+        queryWindow -> {
+          boolean shouldRead =
+              new InclusiveMetricsEvaluator(SCHEMA, stIntersects("geom", queryWindow), true)
+                  .eval(FILE_5);
+          Assert.assertTrue(
+              String.format(
+                  "Should read: data in %s may intersects with %s",
+                  GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+              shouldRead);
+        });
+  }
+
+  @Test
+  @SuppressWarnings("checkstyle:CyclomaticComplexity")
+  public void testStCovers() {
+    Stream<Geometry> geometryStream =
+        Stream.of(TOUCHED_POINTS, TOUCHED_LINES, INSIDE_WINDOWS).flatMap(Stream::of);
+    geometryStream.forEach(
+        queryWindow -> {
+          boolean shouldRead =
+              new InclusiveMetricsEvaluator(SCHEMA, stCovers("geom", queryWindow), true)
+                  .eval(FILE_5);
+          Assert.assertTrue(
+              String.format(
+                  "Should read: data in %s may covers %s",
+                  GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+              shouldRead);
+        });
+
+    geometryStream =
+        Stream.of(DISJOINT_WINDOWS, OVERLAPPED_BUT_NOT_INSIDE_WINDOWS, TOUCHED_WINDOWS)
+            .flatMap(Stream::of);
+    geometryStream.forEach(
+        queryWindow -> {
+          boolean shouldRead =
+              new InclusiveMetricsEvaluator(SCHEMA, stCovers("geom", queryWindow), true)
+                  .eval(FILE_5);
+          Assert.assertFalse(
+              String.format(
+                  "Should not read: data in %s can not covers %s",
+                  GEOM_METRIC_WINDOW, queryWindow.getEnvelopeInternal()),
+              shouldRead);
+        });
   }
 }

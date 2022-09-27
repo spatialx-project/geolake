@@ -24,9 +24,9 @@ import org.apache.iceberg.expressions.Expressions
 import org.apache.iceberg.spark.source.SparkBatchQueryScan
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Expression
-import org.apache.spark.sql.catalyst.expressions.IcebergSTContains
+import org.apache.spark.sql.catalyst.expressions.IcebergSTCoveredBy
+import org.apache.spark.sql.catalyst.expressions.IcebergSTCovers
 import org.apache.spark.sql.catalyst.expressions.IcebergSTIntersects
-import org.apache.spark.sql.catalyst.expressions.IcebergSTWithin
 import org.apache.spark.sql.catalyst.expressions.Literal
 import org.apache.spark.sql.catalyst.expressions.Not
 import org.apache.spark.sql.catalyst.expressions.Or
@@ -45,9 +45,9 @@ import org.apache.spark.sql.iceberg.udt.GeometrySerializer
 
 /**
  * Push down spatial predicates such as
- * [[org.apache.spark.sql.catalyst.expressions.IcebergSTContains IcebergSTContains]],
+ * [[org.apache.spark.sql.catalyst.expressions.IcebergSTCovers IcebergSTCovers]],
  * [[org.apache.spark.sql.catalyst.expressions.IcebergSTIntersects IcebergSTIntersects]],
- * [[org.apache.spark.sql.catalyst.expressions.IcebergSTWithin IcebergSTWithin]]
+ * [[org.apache.spark.sql.catalyst.expressions.IcebergSTCoveredBy IcebergSTCoveredBy]]
  * to iceberg relation scan node [[SparkBatchQueryScan]].
  */
 object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper {
@@ -96,17 +96,17 @@ object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper 
       case Not(innerPredicate) =>
         translateToIcebergSpatialPredicate(innerPredicate, pushableColumn).map(Expressions.not)
 
-      case IcebergSTContains(pushableColumn(name), Literal(v, _)) =>
-        Some(Expressions.stContains(unquote(name), GeometrySerializer.deserialize(v)))
+      case IcebergSTCovers(pushableColumn(name), Literal(v, _)) =>
+        Some(Expressions.stCovers(unquote(name), GeometrySerializer.deserialize(v)))
 
-      case IcebergSTContains(Literal(v, _), pushableColumn(name)) =>
-        Some(Expressions.stWithin(unquote(name), GeometrySerializer.deserialize(v)))
+      case IcebergSTCovers(Literal(v, _), pushableColumn(name)) =>
+        Some(Expressions.stCoveredBy(unquote(name), GeometrySerializer.deserialize(v)))
 
-      case IcebergSTWithin(pushableColumn(name), Literal(v, _)) =>
-        Some(Expressions.stWithin(unquote(name), GeometrySerializer.deserialize(v)))
+      case IcebergSTCoveredBy(pushableColumn(name), Literal(v, _)) =>
+        Some(Expressions.stCoveredBy(unquote(name), GeometrySerializer.deserialize(v)))
 
-      case IcebergSTWithin(Literal(v, _), pushableColumn(name)) =>
-        Some(Expressions.stContains(unquote(name), GeometrySerializer.deserialize(v)))
+      case IcebergSTCoveredBy(Literal(v, _), pushableColumn(name)) =>
+        Some(Expressions.stCovers(unquote(name), GeometrySerializer.deserialize(v)))
 
       case IcebergSTIntersects(pushableColumn(name), Literal(v, _)) =>
         Some(Expressions.stIntersects(unquote(name), GeometrySerializer.deserialize(v)))

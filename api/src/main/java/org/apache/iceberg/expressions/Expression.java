@@ -42,9 +42,9 @@ public interface Expression extends Serializable {
     OR,
     STARTS_WITH,
     NOT_STARTS_WITH,
-    ST_WITHIN,
+    ST_COVEREDBY,
     ST_INTERSECTS,
-    ST_CONTAINS;
+    ST_COVERS;
 
     /** Returns the operation used when this is negated. */
     public Operation negate() {
@@ -105,10 +105,10 @@ public interface Expression extends Serializable {
           return Operation.OR;
         case ST_INTERSECTS:
           return Operation.ST_INTERSECTS;
-        case ST_CONTAINS:
-          return ST_WITHIN;
-        case ST_WITHIN:
-          return ST_CONTAINS;
+        case ST_COVERS:
+          return ST_COVEREDBY;
+        case ST_COVEREDBY:
+          return ST_COVERS;
         default:
           throw new IllegalArgumentException("No left-right flip for operation: " + this);
       }

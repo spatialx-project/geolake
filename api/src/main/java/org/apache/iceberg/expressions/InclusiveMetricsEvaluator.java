@@ -430,36 +430,45 @@ public class InclusiveMetricsEvaluator {
 
     @Override
     public <T> Boolean stIntersects(BoundReference<T> ref, Literal<T> lit) {
-      return stWithin(ref, lit);
+      return geometryFilter(ref, lit, Expression.Operation.ST_INTERSECTS);
     }
 
     @Override
-    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
-      Envelope metricEnvelope = geoBound(ref);
-      if (metricEnvelope == null) {
+    public <T> Boolean stCoveredBy(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVEREDBY);
+    }
+
+    @Override
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVERS);
+    }
+
+    private <T> Boolean geometryFilter(
+        BoundReference<T> ref, Literal<T> lit, Expression.Operation op) {
+      Geometry metricBound = geoBound(ref);
+      if (metricBound == null) {
         return ROWS_MIGHT_MATCH;
       }
       Geometry queryWindow = (Geometry) lit.to(GeometryType.get()).value();
-      if (queryWindow.intersects(new GeometryFactory().toGeometry(metricEnvelope))) {
-        return ROWS_MIGHT_MATCH;
+      switch (op) {
+        case ST_COVERS:
+          if (metricBound.covers(queryWindow)) {
+            return ROWS_MIGHT_MATCH;
+          }
+          break;
+        case ST_COVEREDBY:
+        case ST_INTERSECTS:
+          if (metricBound.intersects(queryWindow)) {
+            return ROWS_MIGHT_MATCH;
+          }
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported operation: " + op);
       }
       return ROWS_CANNOT_MATCH;
     }
 
-    @Override
-    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
-      Envelope metricEnvelope = geoBound(ref);
-      if (metricEnvelope == null) {
-        return ROWS_MIGHT_MATCH;
-      }
-      Geometry queryWindow = (Geometry) lit.to(GeometryType.get()).value();
-      if (metricEnvelope.covers(queryWindow.getEnvelopeInternal())) {
-        return ROWS_MIGHT_MATCH;
-      }
-      return ROWS_CANNOT_MATCH;
-    }
-
-    private <T> Envelope geoBound(BoundReference<T> ref) {
+    private <T> Geometry geoBound(BoundReference<T> ref) {
       int id = ref.fieldId();
       ByteBuffer lowerBoundBuffer = lowerBounds.get(id);
       ByteBuffer upperBoundBuffer = upperBounds.get(id);
@@ -472,7 +481,7 @@ public class InclusiveMetricsEvaluator {
         double yMin = lowerBound.second();
         double xMax = upperBound.first();
         double yMax = upperBound.second();
-        return new Envelope(xMin, xMax, yMin, yMax);
+        return new GeometryFactory().toGeometry(new Envelope(xMin, xMax, yMin, yMax));
       } catch (Exception e) {
         LOG.warn("Failed to parse geometry bounds from metrics, error: ", e);
         return null;
