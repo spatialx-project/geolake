@@ -456,20 +456,20 @@ public class ParquetDictionaryRowGroupFilter {
       Set<T> dictionary = dict(id, lit.comparator());
       Geometry query = (Geometry) lit.value();
       switch (op) {
-        case ST_WITHIN:
+        case ST_COVEREDBY:
           return dictionary.stream().anyMatch(geom -> query.covers((Geometry) geom));
         case ST_INTERSECTS:
           return dictionary.stream().anyMatch(geom -> query.intersects((Geometry) geom));
-        case ST_CONTAINS:
-          return dictionary.stream().anyMatch(geom -> ((Geometry) geom).covers(query));
+        case ST_COVERS:
+          return dictionary.stream().anyMatch(geom -> query.coveredBy((Geometry) geom));
         default:
           throw new IllegalArgumentException("Not support operation: " + op);
       }
     }
 
     @Override
-    public <T> Boolean stWithin(BoundReference<T> ref, Literal<T> lit) {
-      return geometryFilter(ref, lit, Expression.Operation.ST_WITHIN);
+    public <T> Boolean stCoveredBy(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVEREDBY);
     }
 
     @Override
@@ -478,8 +478,8 @@ public class ParquetDictionaryRowGroupFilter {
     }
 
     @Override
-    public <T> Boolean stContains(BoundReference<T> ref, Literal<T> lit) {
-      return geometryFilter(ref, lit, Expression.Operation.ST_CONTAINS);
+    public <T> Boolean stCovers(BoundReference<T> ref, Literal<T> lit) {
+      return geometryFilter(ref, lit, Expression.Operation.ST_COVERS);
     }
 
     @SuppressWarnings("unchecked")
