@@ -34,10 +34,14 @@ import static org.apache.iceberg.expressions.Expressions.notNaN;
 import static org.apache.iceberg.expressions.Expressions.notNull;
 import static org.apache.iceberg.expressions.Expressions.notStartsWith;
 import static org.apache.iceberg.expressions.Expressions.or;
-import static org.apache.iceberg.expressions.Expressions.stContains;
+import static org.apache.iceberg.expressions.Expressions.stCoveredBy;
+import static org.apache.iceberg.expressions.Expressions.stCovers;
 import static org.apache.iceberg.expressions.Expressions.stIntersects;
-import static org.apache.iceberg.expressions.Expressions.stWithin;
 import static org.apache.iceberg.expressions.Expressions.startsWith;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.ManifestEvalData.GEOM_INDEX_MAX;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.ManifestEvalData.GEOM_INDEX_MIN;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.ManifestEvalData.generateInsidePoints;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.ManifestEvalData.generateOutsidePoints;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -50,11 +54,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
-import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.junit.Assert;
 import org.junit.Test;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
 
 public class TestInclusiveManifestEvaluator {
   private static final Schema SCHEMA =
@@ -90,18 +97,11 @@ public class TestInclusiveManifestEvaluator {
           .identity("all_nulls_missing_nan_float")
           .identity("all_same_value_or_null")
           .identity("no_nulls_same_value_a")
-          .xz2("geom")
+          .xz2("geom", TestGeometryHelpers.ManifestEvalData.RESOLUTION)
           .build();
 
   private static final int INT_MIN_VALUE = 30;
   private static final int INT_MAX_VALUE = 79;
-
-  private static final long XZ2_MIN_VALUE = 10L;
-  private static final long XZ2_MAX_VALUE = 100L;
-  private static final ByteBuffer GEOM_INDEX_MIN =
-      toByteBuffer(Types.LongType.get(), XZ2_MIN_VALUE);
-  private static final ByteBuffer GEOM_INDEX_MAX =
-      toByteBuffer(Types.LongType.get(), XZ2_MAX_VALUE);
 
   private static final ByteBuffer INT_MIN = toByteBuffer(Types.IntegerType.get(), INT_MIN_VALUE);
   private static final ByteBuffer INT_MAX = toByteBuffer(Types.IntegerType.get(), INT_MAX_VALUE);
@@ -751,32 +751,50 @@ public class TestInclusiveManifestEvaluator {
   }
 
   @Test
-  public void testEvalGeometryExpressions() {
-    String worldWkt = "POLYGON ((-180 -90, -180 90, 180 90, 180 -90, -180 -90))";
-    String singlePointWkt = "POINT(10 20)";
-    Geometry world = TypeUtil.GeometryUtils.wkt2geometry(worldWkt);
-    Geometry point = TypeUtil.GeometryUtils.wkt2geometry(singlePointWkt);
-
-    // stIn
+  public void testStCovers() {
+    GeometryFactory ff = new GeometryFactory();
+    Point point = ff.createPoint(new Coordinate(0, 0));
     boolean shouldRead =
-        ManifestEvaluator.forRowFilter(stWithin("geom", world), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: any geoms is in the world", shouldRead);
+        ManifestEvaluator.forRowFilter(stCovers("geom", point), SPEC, true).eval(FILE);
+    Assert.assertTrue("Should read, data may contains " + point, shouldRead);
 
-    shouldRead = ManifestEvaluator.forRowFilter(stWithin("geom", point), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read, data is not in a single point", shouldRead);
+    int number = 50;
+    for (Point p : generateInsidePoints(number)) {
+      shouldRead = ManifestEvaluator.forRowFilter(stCovers("geom", p), SPEC, true).eval(FILE);
+      Assert.assertTrue("Should read, data may contains " + p, shouldRead);
+    }
 
-    // stContain
-    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", world), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read: can not contain the whole world", shouldRead);
+    for (Point p : generateOutsidePoints(number)) {
+      shouldRead = ManifestEvaluator.forRowFilter(stCovers("geom", p), SPEC, true).eval(FILE);
+      Assert.assertFalse("Should not read, data does not contain " + p, shouldRead);
+    }
+  }
 
-    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", point), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read, data not contains the point", shouldRead);
+  @Test
+  public void testStCoveredBy() {
+    boolean shouldRead;
+    for (Geometry window : TestGeometryHelpers.ManifestEvalData.SLIDING_WINDOWS) {
+      Envelope envelope = window.getEnvelopeInternal();
+      shouldRead =
+          ManifestEvaluator.forRowFilter(stCoveredBy("geom", window), SPEC, true).eval(FILE);
+      Assert.assertEquals(
+          String.format("should read only if %s intersects with the first quadrant", envelope),
+          envelope.getMaxX() >= 0 && envelope.getMaxY() >= 0,
+          shouldRead);
+    }
+  }
 
-    // stIntersects
-    shouldRead = ManifestEvaluator.forRowFilter(stIntersects("geom", world), SPEC, true).eval(FILE);
-    Assert.assertTrue("Should read: any geoms is overlapped with the whole world", shouldRead);
-
-    shouldRead = ManifestEvaluator.forRowFilter(stContains("geom", point), SPEC, true).eval(FILE);
-    Assert.assertFalse("Should not read, data is not intersected with the point", shouldRead);
+  @Test
+  public void testStIntersects() {
+    boolean shouldRead;
+    for (Geometry window : TestGeometryHelpers.ManifestEvalData.SLIDING_WINDOWS) {
+      Envelope envelope = window.getEnvelopeInternal();
+      shouldRead =
+          ManifestEvaluator.forRowFilter(stIntersects("geom", window), SPEC, true).eval(FILE);
+      Assert.assertEquals(
+          String.format("should read only if %s intersects with the first quadrant", envelope),
+          envelope.getMaxX() >= 0 && envelope.getMaxY() >= 0,
+          shouldRead);
+    }
   }
 }

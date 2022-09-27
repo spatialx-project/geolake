@@ -203,7 +203,7 @@ public class XZ2SFCurving implements Serializable {
   private long index(Bound bound) {
     final Bound normBound = normalize(bound);
     double maxDim = Math.max(normBound.xMax - normBound.xMin, normBound.yMax - normBound.yMin);
-    final int l1 = (int) Math.floor(Math.log(maxDim) / LogPointFive);
+    final int l1 = maxDim > 0 ? (int) Math.floor(Math.log(maxDim) / LogPointFive) : resolution;
     int length = resolution;
     // the length will either be (l1) or (l1 + 1)
     if (l1 < resolution) {
