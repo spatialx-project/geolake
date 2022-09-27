@@ -166,10 +166,10 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stWithin(Bound<T> valueExpr, Literal<T> lit) {
+    public <T> Boolean stCoveredBy(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
-      return geometry.within(boundary);
+      return geometry.coveredBy(boundary);
     }
 
     @Override
@@ -180,7 +180,7 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stContains(Bound<T> valueExpr, Literal<T> lit) {
+    public <T> Boolean stCovers(Bound<T> valueExpr, Literal<T> lit) {
       Geometry geometry = evalAsGeometry(valueExpr);
       Geometry boundary = (Geometry) lit.to(GeometryType.get()).value();
       return geometry.covers(boundary);
@@ -198,7 +198,7 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stWithin(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+    public <T> Boolean stCoveredBy(Bound<T> valueExpr, IndexRangeSet rangeSet) {
       return matchGeomPartition(valueExpr, rangeSet);
     }
 
@@ -208,7 +208,7 @@ public class Evaluator implements Serializable {
     }
 
     @Override
-    public <T> Boolean stContains(Bound<T> valueExpr, IndexRangeSet rangeSet) {
+    public <T> Boolean stCovers(Bound<T> valueExpr, IndexRangeSet rangeSet) {
       return matchGeomPartition(valueExpr, rangeSet);
     }
 
@@ -220,7 +220,7 @@ public class Evaluator implements Serializable {
         return (Geometry) value;
       } else {
         throw new IllegalStateException(
-            "left hand side of stWithin operator is not geometry: " + value);
+            "left hand side of stCoveredBy operator is not geometry: " + value);
       }
     }
   }
