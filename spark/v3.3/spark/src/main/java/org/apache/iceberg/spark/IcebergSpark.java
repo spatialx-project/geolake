@@ -58,7 +58,7 @@ public class IcebergSpark {
       SparkSession session, String funcName, DataType sourceType, int resolution) {
     SparkTypeToType typeConverter = new SparkTypeToType();
     Type sourceIcebergType = typeConverter.atomic(sourceType);
-    Transform<Object, Long> xz2 = Transforms.xz2(resolution);
+    Function<Object, Long> xz2 = Transforms.xz2(resolution).bind(sourceIcebergType);
     session
         .udf()
         .register(
