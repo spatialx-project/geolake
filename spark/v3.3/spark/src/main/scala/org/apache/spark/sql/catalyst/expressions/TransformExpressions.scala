@@ -24,13 +24,12 @@ import java.nio.CharBuffer
 import java.nio.charset.StandardCharsets
 import java.util.function
 import org.apache.iceberg.spark.SparkSchemaUtil
-import org.apache.iceberg.transforms.Transform
 import org.apache.iceberg.transforms.Transforms
 import org.apache.iceberg.types.Type
 import org.apache.iceberg.types.Types
 import org.apache.iceberg.util.ByteBuffers
+import org.apache.iceberg.util.SerializableFunction
 import org.apache.spark.sql.catalyst.expressions.codegen.CodegenFallback
-import org.apache.spark.sql.catalyst.util.ArrayData
 import org.apache.spark.sql.iceberg.udt.GeometrySerializer
 import org.apache.spark.sql.types.AbstractDataType
 import org.apache.spark.sql.types.BinaryType
@@ -164,7 +163,8 @@ case class IcebergTruncateTransform(child: Expression, width: Int) extends Icebe
 
 case class IcebergXZ2Transform(child: Expression, resolution: Int) extends IcebergTransformExpression {
 
-  @transient lazy val xz2Func: Transform[Any, java.lang.Long] = Transforms.xz2[Any](resolution)
+  @transient lazy val xz2Func: SerializableFunction[Any, java.lang.Long] =
+    Transforms.xz2[Any](resolution).bind(icebergInputType)
 
   override protected def nullSafeEval(value: Any): Any = {
     val geom = GeometrySerializer.deserialize(value)
