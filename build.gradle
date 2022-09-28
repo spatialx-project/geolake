@@ -23,7 +23,14 @@ import java.util.regex.Pattern
 
 buildscript {
   repositories {
-    maven { url 'https://maven.aliyun.com/repository/public' }
+    maven {
+      url "http://172.17.0.83:58081/repository/maven-public/"
+      allowInsecureProtocol true
+      credentials {
+        username "development"
+        password "byH7c5VNcb8jCyJoTEkL"
+      }
+    }
     gradlePluginPortal()
   }
   dependencies {
@@ -97,7 +104,14 @@ allprojects {
   group = "org.apache.iceberg"
   version = projectVersion
   repositories {
-    maven { url 'https://maven.aliyun.com/repository/public' }
+    maven {
+      url "http://172.17.0.83:58081/repository/maven-public/"
+      allowInsecureProtocol true
+      credentials {
+        username "development"
+        password "byH7c5VNcb8jCyJoTEkL"
+      }
+    }
     mavenCentral()
     mavenLocal()
   }

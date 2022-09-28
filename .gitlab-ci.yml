@@ -5,6 +5,7 @@ stages:
   - checking
   - testing
   - building
+  - staging
 
 before_script:
   - GRADLE_USER_HOME="$(pwd)/.gradle"
@@ -42,6 +43,13 @@ test:
 build:
   stage: building
   script:
-    - './gradlew -DflinkVersions= -DsparkVersions=3.3 -DhiveVersions= build -x test -x javadoc -x integrationTest'
+    - './gradlew build -x test -x javadoc -x integrationTest'
   only:
     - merge_requests
+
+deploy-snapshot:
+  stage: staging
+  script:
+    - './gradlew publish'
+  only:
+    - gd-internal
