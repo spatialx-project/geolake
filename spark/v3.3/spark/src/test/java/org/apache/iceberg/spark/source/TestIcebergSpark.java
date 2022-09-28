@@ -280,11 +280,13 @@ public class TestIcebergSpark {
         spark
             .sql(
                 "SELECT IcebergSTGeomFromText('POINT (10 20)'),"
-                    + "IcebergSTAsText(IcebergSTGeomFromText('POINT (10 20)'))")
+                    + "IcebergSTAsText(IcebergSTGeomFromText('POINT (10 20)')),"
+                    + "IcebergXZ2(IcebergSTGeomFromText('POINT (10 20)'), 1)")
             .collectAsList();
     Assert.assertEquals(1, results.size());
     Assert.assertTrue(results.get(0).get(0) instanceof Geometry);
     Assert.assertEquals(results.get(0).get(1), results.get(0).get(0).toString());
+    Assert.assertEquals(4L, results.get(0).getLong(2));
     results =
         spark
             .sql(
