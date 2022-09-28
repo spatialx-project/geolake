@@ -64,7 +64,7 @@ subprojects {
 
     publishing {
       publications {
-        apache(MavenPublication) {
+        nexus(MavenPublication) {
           if (tasks.matching({task -> task.name == 'shadowJar'}).isEmpty()) {
             from components.java
           } else {
@@ -110,15 +110,16 @@ subprojects {
 
       repositories {
         maven {
+          allowInsecureProtocol true
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+              username "development"
+              password "byH7c5VNcb8jCyJoTEkL"
           }
           // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
+          def nexusSnapshotsRepoUrl = 'http://172.17.0.83:58081/repository/maven-snapshots/'
+          def nexusReleasesRepoUrl = 'http://172.17.0.83:58081/repository/maven-releases/'
+          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$nexusSnapshotsRepoUrl"
+          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$nexusReleasesRepoUrl"
           url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
       }
