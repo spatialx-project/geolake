@@ -19,6 +19,7 @@
 
 package org.apache.spark.sql.catalyst.expressions
 
+import org.apache.iceberg.transforms.geometry.XZ2SFCurving
 import org.apache.spark.sql.SparkSessionExtensions
 import org.apache.spark.sql.catalyst.FunctionIdentifier
 import org.apache.spark.sql.catalyst.analysis.FunctionRegistry
@@ -27,6 +28,8 @@ import org.apache.spark.sql.iceberg.udt.GeometrySerializer
 import org.apache.spark.sql.iceberg.udt.GeometryUDT
 import org.apache.spark.sql.types.AbstractDataType
 import org.apache.spark.sql.types.DataType
+import org.apache.spark.sql.types.IntegerType
+import org.apache.spark.sql.types.LongType
 import org.apache.spark.sql.types.StringType
 import org.apache.spark.unsafe.types.UTF8String
 import org.locationtech.jts.geom.Geometry
@@ -104,6 +107,25 @@ case class IcebergSTAsText(child: Expression) extends UnaryExpression with Codeg
   override protected def withNewChildInternal(newChild: Expression): Expression = copy(child = newChild)
 }
 
+case class IcebergXZ2(left: Expression, right: Expression) extends BinaryExpression with CodegenFallback
+  with ExpectsInputTypes with NullIntolerant {
+
+  override def inputTypes: Seq[AbstractDataType] = Seq(GeometryUDT, IntegerType)
+
+  override def dataType: DataType = LongType
+
+  override protected def nullSafeEval(input1: Any, input2: Any): Any = {
+    val geom = GeometrySerializer.deserialize(input1)
+    val resolution = input2.asInstanceOf[Int]
+    val env = geom.getEnvelopeInternal
+    val sfc = new XZ2SFCurving(resolution)
+    sfc.index(env.getMinX, env.getMinY, env.getMaxX, env.getMaxY)
+  }
+
+  override protected def withNewChildrenInternal(newLeft: Expression, newRight: Expression): Expression =
+    copy(left = newLeft, right = newRight)
+}
+
 object GeometryExpressions {
   private val functions = Seq(
     (FunctionIdentifier("IcebergSTCovers"),
@@ -120,7 +142,11 @@ object GeometryExpressions {
       (children: Seq[Expression]) => IcebergSTGeomFromText(children.head)),
     (FunctionIdentifier("IcebergSTAsText"),
       new ExpressionInfo(classOf[IcebergSTAsText].getName, "IcebergSTAsText"),
-      (children: Seq[Expression]) => IcebergSTAsText(children.head)))
+      (children: Seq[Expression]) => IcebergSTAsText(children.head)),
+    (FunctionIdentifier("IcebergXZ2"),
+      new ExpressionInfo(classOf[IcebergXZ2].getName, "IcebergXZ2"),
+      (children: Seq[Expression]) => IcebergXZ2(children.head, children.last))
+  )
 
   def registerFunctions(extensions: SparkSessionExtensions): Unit = {
     functions.foreach(extensions.injectFunction)
