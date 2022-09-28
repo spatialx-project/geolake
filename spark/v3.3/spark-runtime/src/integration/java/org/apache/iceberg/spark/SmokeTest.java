@@ -19,18 +19,11 @@
 package org.apache.iceberg.spark;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
-import java.util.Random;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.spark.extensions.SparkExtensionsTestBase;
-import org.apache.iceberg.types.TypeUtil;
-import org.apache.spark.sql.Dataset;
-import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.analysis.NoSuchTableException;
-import org.apache.spark.sql.catalyst.expressions.GenericRow;
-import org.apache.spark.sql.types.StructType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -185,7 +178,29 @@ public class SmokeTest extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testGeometryTableDdl() {
+  public void testGettingStartedGeometryTable() {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint, geo geometry) USING iceberg PARTITIONED BY (xz2(2, geo))",
+        tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, IcebergSTGeomFromText('POINT (10 20)')), (2, IcebergSTGeomFromText('POINT (20 30)'))",
+        tableName);
+    Assert.assertEquals(
+        "Record 1 should now have geo POINT (10 20)",
+        "POINT (10 20)",
+        scalarSql("SELECT IcebergSTAsText(geo) FROM %s WHERE id = 1", tableName));
+    Assert.assertEquals(
+        "Record within query window should be 2",
+        2L,
+        scalarSql(
+            "SELECT id FROM %s WHERE IcebergSTCovers(IcebergSTGeomFromText('POLYGON((15 20, 15 40, 25 40, 25 20, 15 20))'), geo)",
+            tableName));
+    sql("DROP TABLE %s", tableName);
+  }
+
+  @Test
+  public void testAlterGeometryTable() {
     sql("CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg", tableName);
     sql("ALTER TABLE %s ADD PARTITION FIELD xz2(12, geo) AS p1", tableName);
     sql("ALTER TABLE %s REPLACE PARTITION FIELD p1 WITH xz2(6, geo) as xz", tableName);
@@ -205,54 +220,5 @@ public class SmokeTest extends SparkExtensionsTestBase {
     sql("ALTER TABLE %s RENAME COLUMN geo To geom", tableName);
     sql("ALTER TABLE %s ALTER COLUMN geom Type binary", tableName);
     sql("ALTER TABLE %s DROP COLUMN geom", tableName);
-  }
-
-  @Test
-  public void testGeometryTableRW() throws NoSuchTableException {
-    String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
-    String[] geometryPartition = {" PARTITIONED BY (xz2(2, geo)) ", ""};
-    String[] vectorizationSetting = {"true", "false"};
-    Row[] rows = new Row[100];
-    Random random = new Random();
-    for (int k = 0; k < rows.length; k++) {
-      Object[] values = new Object[3];
-      values[0] = (long) k;
-      values[1] = String.format("str_%d", k);
-      double lon = random.nextDouble() * 200 - 100;
-      double lat = random.nextDouble() * 160 - 80;
-      values[2] = TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%f %f)", lon, lat));
-      rows[k] = new GenericRow(values);
-    }
-    for (String geometryEncoding : geometryEncodings) {
-      for (String partition : geometryPartition) {
-        for (String vectorizationEnabled : vectorizationSetting) {
-          String hint =
-              String.format(
-                  "(geometryEncoding: %s; partition:%s; vectorizationEnabled: %s)",
-                  geometryEncoding, partition, vectorizationEnabled);
-          sql("DROP TABLE IF EXISTS %s", tableName);
-          sql(
-              "CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg "
-                  + partition
-                  + "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', "
-                  + "'write.parquet.geometry.encoding' = '%s')",
-              tableName,
-              vectorizationEnabled,
-              geometryEncoding);
-          Dataset<Row> tableDf = spark.table(tableName);
-          StructType schema = tableDf.schema();
-          Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
-          geomDf.writeTo(tableName).overwritePartitions();
-          Assert.assertEquals(
-              hint + " Should have inserted 100 rows",
-              100L,
-              scalarSql("SELECT COUNT(*) FROM %s", tableName));
-          Assert.assertEquals(
-              hint + " Row should have correct geo value",
-              rows[5].get(2).toString(),
-              scalarSql("SELECT geo FROM %s WHERE id = 5", tableName).toString());
-        }
-      }
-    }
   }
 }
