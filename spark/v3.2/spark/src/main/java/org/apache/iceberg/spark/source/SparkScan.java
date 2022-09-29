@@ -71,7 +71,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
   private StructType readSchema;
 
   SparkScan(
-      SparkSession spark,
+      JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
       Schema expectedSchema,
@@ -79,7 +79,7 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -88,8 +88,30 @@ abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        expectedSchema,
+        filters);
+  }
+
   protected Table table() {
     return table;
+  }
+
+  protected SparkReadConf readConf() {
+    return readConf;
+  }
+
+  protected JavaSparkContext sparkContext() {
+    return sparkContext;
   }
 
   protected boolean caseSensitive() {

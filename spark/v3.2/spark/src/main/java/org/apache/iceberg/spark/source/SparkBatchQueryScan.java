@@ -51,6 +51,7 @@ import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
@@ -59,7 +60,7 @@ import org.apache.spark.sql.sources.Filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering {
+public class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
@@ -81,8 +82,23 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        scan,
+        readConf,
+        expectedSchema,
+        filters);
+  }
 
-    super(spark, table, readConf, expectedSchema, filters);
+  SparkBatchQueryScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      TableScan scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(sparkContext, table, readConf, expectedSchema, filters);
 
     this.scan = scan;
     this.snapshotId = readConf.snapshotId();
@@ -95,6 +111,42 @@ class SparkBatchQueryScan extends SparkScan implements SupportsRuntimeFiltering 
       this.specIds = Collections.emptySet();
       this.files = Collections.emptyList();
       this.tasks = Collections.emptyList();
+    }
+  }
+
+  public SparkBatchQueryScan withExpressions(List<Expression> newFilters) {
+    List<Expression> newFilterExpressions = Lists.newArrayList(this.filterExpressions());
+    Schema schema = this.table().schema();
+    boolean caseSensitive = this.caseSensitive();
+    TableScan newScan = this.scan;
+    Set<String> filterExprSet =
+        Sets.newHashSet(newFilterExpressions.stream().map(Object::toString).iterator());
+    for (Expression expr : newFilters) {
+      if (filterExprSet.contains(expr.toString())) {
+        continue;
+      }
+      try {
+        Binder.bind(schema.asStruct(), expr, caseSensitive);
+        newFilterExpressions.add(expr);
+        filterExprSet.add(expr.toString());
+        newScan = newScan.filter(expr);
+      } catch (ValidationException e) {
+        LOG.info(
+            "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
+            expr,
+            e.getMessage());
+      }
+    }
+    if (newScan != scan) {
+      return new SparkBatchQueryScan(
+          this.sparkContext(),
+          this.table(),
+          newScan,
+          this.readConf(),
+          this.expectedSchema(),
+          newFilterExpressions);
+    } else {
+      return this;
     }
   }
 
