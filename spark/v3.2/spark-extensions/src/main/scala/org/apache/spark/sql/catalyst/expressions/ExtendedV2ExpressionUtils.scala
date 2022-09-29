@@ -22,8 +22,8 @@ package org.apache.spark.sql.catalyst.expressions
 import org.apache.spark.sql.AnalysisException
 import org.apache.spark.sql.catalyst.SQLConfHelper
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
-import org.apache.spark.sql.connector.expressions.{Expression => V2Expression}
 import org.apache.spark.sql.connector.expressions.{SortDirection => V2SortDirection}
+import org.apache.spark.sql.connector.expressions.{Expression => V2Expression}
 import org.apache.spark.sql.connector.expressions.{NullOrdering => V2NullOrdering}
 import org.apache.spark.sql.connector.expressions.BucketTransform
 import org.apache.spark.sql.connector.expressions.DaysTransform
@@ -34,6 +34,7 @@ import org.apache.spark.sql.connector.expressions.MonthsTransform
 import org.apache.spark.sql.connector.expressions.NamedReference
 import org.apache.spark.sql.connector.expressions.SortValue
 import org.apache.spark.sql.connector.expressions.TruncateTransform
+import org.apache.spark.sql.connector.expressions.XZ2Transform
 import org.apache.spark.sql.connector.expressions.YearsTransform
 import org.apache.spark.sql.errors.QueryCompilationErrors
 
@@ -69,6 +70,8 @@ object ExtendedV2ExpressionUtils extends SQLConfHelper {
         IcebergBucketTransform(numBuckets, resolveRef[NamedExpression](ref, query))
       case TruncateTransform(length, ref) =>
         IcebergTruncateTransform(resolveRef[NamedExpression](ref, query), length)
+      case XZ2Transform(resolution, ref) =>
+        IcebergXZ2Transform(resolveRef[NamedExpression](ref, query), resolution)
       case YearsTransform(ref) =>
         IcebergYearTransform(resolveRef[NamedExpression](ref, query))
       case MonthsTransform(ref) =>
