@@ -7,6 +7,10 @@ stages:
   - building
   - staging
 
+include:
+  - '.gitlab/java-ci.yml'
+  - '.gitlab/spark-ci.yml'
+
 before_script:
   - GRADLE_USER_HOME="$(pwd)/.gradle"
   - export GRADLE_USER_HOME
@@ -30,13 +34,6 @@ core_style:
   stage: checking
   script:
     - './gradlew spotlessCheck checkstyleMain checkstyleTest checkstyleIntegration checkstyleJmh scalastyleMainCheck scalastyleTestCheck'
-  only:
-    - merge_requests
-
-test:
-  stage: testing
-  script:
-    - './gradlew check -DsparkVersions=3.3 -DhiveVersions= -DflinkVersions= -x javadoc'
   only:
     - merge_requests
 
