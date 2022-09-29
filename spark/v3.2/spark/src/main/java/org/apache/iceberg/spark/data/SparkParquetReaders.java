@@ -27,6 +27,9 @@ import java.util.List;
 import java.util.Map;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.parquet.GeoParquetEnums;
+import org.apache.iceberg.parquet.GeoParquetUtil;
+import org.apache.iceberg.parquet.GeoParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -45,6 +48,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.apache.iceberg.types.Type.TypeID;
+import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.UUIDUtil;
 import org.apache.parquet.column.ColumnDescriptor;
@@ -60,10 +64,12 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
 import org.apache.spark.sql.types.DataType;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
 
 public class SparkParquetReaders {
   private SparkParquetReaders() {}
@@ -284,8 +290,12 @@ public class SparkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          if (expected != null && expected.typeId() == TypeID.UUID) {
-            return new UUIDReader(desc);
+          if (expected != null) {
+            if (expected.typeId() == TypeID.UUID) {
+              return new UUIDReader(desc);
+            } else if (expected.typeId() == TypeID.GEOMETRY) {
+              return new GeometryWKBReader(desc);
+            }
           }
           return new ParquetValueReaders.ByteArrayReader(desc);
         case INT32:
@@ -310,6 +320,31 @@ public class SparkParquetReaders {
           return new TimestampInt96Reader(desc);
         default:
           throw new UnsupportedOperationException("Unsupported type: " + primitive);
+      }
+    }
+
+    @Override
+    public ParquetValueReader<?> struct(
+        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
+      if (iPrimitive != null
+          && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+        GeoParquetEnums.GeometryEncoding geometryEncoding =
+            GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
+        switch (geometryEncoding) {
+          case WKB_BBOX:
+            return new GeometryWKBBBoxReader(type, currentPath());
+          case NESTED_LIST:
+            return new GeometryNestedListReader(type, currentPath());
+          default:
+            throw new UnsupportedOperationException(
+                "Unsupported geometry encoding of group type " + struct);
+        }
+      } else {
+        throw new UnsupportedOperationException(
+            "Cannot create reader for reading group type "
+                + struct
+                + " as primitive type "
+                + iPrimitive);
       }
     }
 
@@ -781,6 +816,48 @@ public class SparkParquetReaders {
     @Override
     public MapData getMap(int ordinal) {
       return (MapData) values[ordinal];
+    }
+  }
+
+  private static class GeometryWKBReader extends PrimitiveReader<ArrayData> {
+    GeometryWKBReader(ColumnDescriptor desc) {
+      super(desc);
+    }
+
+    @Override
+    public ArrayData read(ArrayData reuse) {
+      Binary binary = column.nextBinary();
+      ByteBuffer buffer = binary.toByteBuffer();
+      Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
+      return GeometrySerializer.serialize(geom);
+    }
+  }
+
+  private static class GeometryWKBBBoxReader
+      extends GeoParquetValueReaders.GeometryGenericWKBBBoxReader<ArrayData> {
+    GeometryWKBBBoxReader(MessageType type, String[] prefix) {
+      super(type, prefix);
+    }
+
+    @Override
+    public ArrayData read(ArrayData reuse) {
+      Binary binary = this.readWKB();
+      ByteBuffer buffer = binary.toByteBuffer();
+      Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
+      return GeometrySerializer.serialize(geom);
+    }
+  }
+
+  private static class GeometryNestedListReader
+      extends GeoParquetValueReaders.GeometryGenericNestedListReader<ArrayData> {
+    GeometryNestedListReader(MessageType type, String[] prefix) {
+      super(type, prefix);
+    }
+
+    @Override
+    public ArrayData read(ArrayData reuse) {
+      Geometry geom = this.readGeometry();
+      return GeometrySerializer.serialize(geom);
     }
   }
 }
