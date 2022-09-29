@@ -1,0 +1,29 @@
+test:
+  stage: testing
+  script:
+    - './gradlew check -DsparkVersions= -DhiveVersions= -DflinkVersions= -x javadoc -x spotlessCheck -x checkstyleMain -x checkstyleTest -x checkstyleIntegration -x checkstyleJmh'
+  only:
+    refs:
+      - merge_requests
+    changes:
+      - aliyun/**/*
+      - api/**/*
+      - arrow/**/*
+      - aws/**/*
+      - bundled-guava/**/*
+      - common/**/*
+      - core/**/*
+      - data/**/*
+      - dell/**/*
+      - flink/**/*
+      - gcp/**/*
+      - hive3/**/*
+      - hive3-orc-bundle/**/*
+      - hive-metastore/**/*
+      - hive-runtime/**/*
+      - mr/**/*
+      - nessie/**/*
+      - orc/**/*
+      - parquet/**/*
+      - pig/**/*
+      - .gitlab-ci.yml

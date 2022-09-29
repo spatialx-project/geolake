@@ -1,0 +1,27 @@
+test-spark3:
+  stage: testing
+  script:
+    - './gradlew iceberg-spark:iceberg-spark-3.3_2.12:check -x spotlessCheck -x checkstyleMain -x checkstyleTest -x checkstyleIntegration -x checkstyleJmh -x scalastyleMainCheck -x scalastyleTestCheck'
+    - './gradlew iceberg-spark:iceberg-spark-extensions-3.3_2.12:check -x spotlessCheck -x checkstyleMain -x checkstyleTest -x checkstyleIntegration -x checkstyleJmh -x scalastyleMainCheck -x scalastyleTestCheck'
+    - './gradlew iceberg-spark:iceberg-spark-runtime-3.3_2.12:check -x spotlessCheck -x checkstyleMain -x checkstyleTest -x checkstyleIntegration -x checkstyleJmh -x scalastyleMainCheck -x scalastyleTestCheck'
+  only:
+    refs:
+      - merge_requests
+    changes:
+      - spark/v3.3/**/*
+      - aliyun/**/*
+      - api/**/*
+      - arrow/**/*
+      - aws/**/*
+      - bundled-guava/**/*
+      - common/**/*
+      - core/**/*
+      - data/**/*
+      - dell/**/*
+      - gcp/**/*
+      - hive-metastore/**/*
+      - nessie/**/*
+      - orc/**/*
+      - parquet/**/*
+      - spark/**/*
+
