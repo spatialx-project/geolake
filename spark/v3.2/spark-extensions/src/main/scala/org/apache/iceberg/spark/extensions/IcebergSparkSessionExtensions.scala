@@ -30,8 +30,10 @@ import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RewriteDeleteFromTable
 import org.apache.spark.sql.catalyst.analysis.RewriteMergeIntoTable
 import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
+import org.apache.spark.sql.catalyst.expressions.GeometryExpressions
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
+import org.apache.spark.sql.catalyst.optimizer.GeometryPredicatePushDown
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
 import org.apache.spark.sql.execution.datasources.v2.ExtendedV2Writes
@@ -39,10 +41,17 @@ import org.apache.spark.sql.execution.datasources.v2.OptimizeMetadataOnlyDeleteF
 import org.apache.spark.sql.execution.datasources.v2.ReplaceRewrittenRowLevelCommand
 import org.apache.spark.sql.execution.datasources.v2.RowLevelCommandScanRelationPushDown
 import org.apache.spark.sql.execution.dynamicpruning.RowLevelCommandDynamicPruning
+import org.apache.spark.sql.iceberg.udt.UDTRegistration
 
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
+    // user defined types
+    UDTRegistration.registerTypes()
+
+    // user defined functions
+    GeometryExpressions.registerFunctions(extensions)
+
     // parser extensions
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
 
@@ -70,6 +79,12 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectPreCBORule { _ => ExtendedV2Writes }
     extensions.injectPreCBORule { spark => RowLevelCommandDynamicPruning(spark) }
     extensions.injectPreCBORule { _ => ReplaceRewrittenRowLevelCommand }
+
+    // geometry related extensions
+    extensions.injectCheckRule(spark => {
+      spark.experimental.extraOptimizations ++= Seq(GeometryPredicatePushDown)
+      _ => ()
+    })
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }

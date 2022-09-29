@@ -32,7 +32,6 @@ import org.apache.iceberg.util.Tasks;
 import org.apache.iceberg.util.ThreadPools;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
-import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.read.Batch;
 import org.apache.spark.sql.connector.read.InputPartition;
 import org.apache.spark.sql.connector.read.PartitionReaderFactory;
@@ -46,8 +45,9 @@ abstract class SparkBatch implements Batch {
   private final boolean caseSensitive;
   private final boolean localityEnabled;
 
-  SparkBatch(SparkSession spark, Table table, SparkReadConf readConf, Schema expectedSchema) {
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+  SparkBatch(
+      JavaSparkContext sparkContext, Table table, SparkReadConf readConf, Schema expectedSchema) {
+    this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
     this.expectedSchema = expectedSchema;

@@ -43,6 +43,7 @@ import org.apache.iceberg.spark.source.metrics.NumSplits;
 import org.apache.iceberg.spark.source.metrics.TaskNumDeletes;
 import org.apache.iceberg.spark.source.metrics.TaskNumSplits;
 import org.apache.iceberg.util.PropertyUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.broadcast.Broadcast;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.catalyst.InternalRow;
@@ -75,12 +76,12 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
   private StructType readSchema;
 
   SparkScan(
-      SparkSession spark,
+      JavaSparkContext sparkContext,
       Table table,
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
-    super(spark, table, readConf, expectedSchema);
+    super(sparkContext, table, readConf, expectedSchema);
 
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
@@ -92,8 +93,26 @@ abstract class SparkScan extends SparkBatch implements Scan, SupportsReportStati
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
+  SparkScan(
+      SparkSession spark,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        expectedSchema,
+        filters);
+  }
+
   protected Table table() {
     return table;
+  }
+
+  protected SparkReadConf readConf() {
+    return readConf;
   }
 
   protected boolean caseSensitive() {
