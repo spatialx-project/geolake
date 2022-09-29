@@ -18,6 +18,7 @@
  */
 package org.apache.iceberg.spark;
 
+import java.util.function.Function;
 import org.apache.iceberg.transforms.Transform;
 import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Type;
@@ -52,5 +53,18 @@ public class IcebergSpark {
             funcName,
             value -> truncate.apply(SparkValueConverter.convert(sourceIcebergType, value)),
             sourceType);
+  }
+
+  public static void registerXz2UDF(
+      SparkSession session, String funcName, DataType sourceType, int resolution) {
+    SparkTypeToType typeConverter = new SparkTypeToType();
+    Type sourceIcebergType = typeConverter.atomic(sourceType);
+    Function<Object, Long> xz2 = Transforms.xz2(resolution).bind(sourceIcebergType);
+    session
+        .udf()
+        .register(
+            funcName,
+            value -> xz2.apply(SparkValueConverter.convert(sourceIcebergType, value)),
+            DataTypes.LongType);
   }
 }
