@@ -52,6 +52,7 @@ project(":iceberg-spark:iceberg-spark-${sparkMajorVersion}_${scalaVersion}") {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
     api project(':iceberg-api')
+    implementation 'org.locationtech.jts.io:jts-io-common'
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
     implementation project(':iceberg-data')
@@ -135,6 +136,7 @@ project(":iceberg-spark:iceberg-spark-extensions-${sparkMajorVersion}_${scalaVer
 
   dependencies {
     implementation("org.scala-lang.modules:scala-collection-compat_${scalaVersion}")
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     compileOnly "org.scala-lang:scala-library:${scalaVersion}"
     compileOnly project(path: ':iceberg-bundled-guava', configuration: 'shadow')
@@ -220,6 +222,7 @@ project(":iceberg-spark:iceberg-spark-runtime-${sparkMajorVersion}_${scalaVersio
     }
 
     integrationImplementation "org.scala-lang.modules:scala-collection-compat_${scalaVersion}"
+    integrationImplementation 'org.locationtech.jts.io:jts-io-common'
     integrationImplementation "org.apache.spark:spark-hive_${scalaVersion}:${sparkVersion}"
     integrationImplementation 'org.junit.vintage:junit-vintage-engine'
     integrationImplementation 'org.slf4j:slf4j-simple'
