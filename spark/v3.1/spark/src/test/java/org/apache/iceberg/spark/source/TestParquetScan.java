@@ -19,10 +19,13 @@
 package org.apache.iceberg.spark.source;
 
 import static org.apache.iceberg.Files.localOutput;
+import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.apache.avro.generic.GenericData;
 import org.apache.hadoop.conf.Configuration;
@@ -33,9 +36,13 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.data.GenericRecord;
+import org.apache.iceberg.data.parquet.GenericParquetWriter;
 import org.apache.iceberg.hadoop.HadoopTables;
 import org.apache.iceberg.io.FileAppender;
 import org.apache.iceberg.parquet.Parquet;
+import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.data.AvroDataTest;
 import org.apache.iceberg.spark.data.RandomData;
 import org.apache.iceberg.spark.data.TestHelpers;
@@ -44,11 +51,13 @@ import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.iceberg.udt.UDTRegistration;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Assume;
 import org.junit.BeforeClass;
 import org.junit.Rule;
+import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -135,6 +144,76 @@ public class TestParquetScan extends AvroDataTest {
 
     for (int i = 0; i < expected.size(); i += 1) {
       TestHelpers.assertEqualsSafe(tableSchema.asStruct(), expected.get(i), rows.get(i));
+    }
+  }
+
+  protected void writeAndValidateGeoParquet(
+      Schema schema, String geometryEncoding, List<GenericRecord> expected) throws IOException {
+    UDTRegistration.registerTypes();
+    File parent = temp.newFolder("parquet-" + geometryEncoding);
+    File location = new File(parent, "test");
+    File dataFolder = new File(location, "data");
+    dataFolder.mkdirs();
+
+    HadoopTables tables = new HadoopTables(CONF);
+    Table table = tables.create(schema, PartitionSpec.unpartitioned(), location.toString());
+    Schema tableSchema = table.schema();
+
+    File parquetFile =
+        new File(dataFolder, FileFormat.PARQUET.addExtension(UUID.randomUUID().toString()));
+    Map<String, String> config =
+        ImmutableMap.of("write.parquet.geometry.encoding", geometryEncoding);
+    try (FileAppender<GenericRecord> writer =
+        Parquet.write(localOutput(parquetFile))
+            .schema(tableSchema)
+            .createWriterFunc(type -> GenericParquetWriter.buildWriter(tableSchema, type, config))
+            .setAll(config)
+            .build()) {
+      writer.addAll(expected);
+    }
+
+    DataFile file =
+        DataFiles.builder(PartitionSpec.unpartitioned())
+            .withFileSizeInBytes(parquetFile.length())
+            .withPath(parquetFile.toString())
+            .withRecordCount(expected.size())
+            .build();
+
+    table.newAppend().appendFile(file).commit();
+    table
+        .updateProperties()
+        .set(TableProperties.PARQUET_VECTORIZATION_ENABLED, String.valueOf(vectorized))
+        .commit();
+
+    Dataset<Row> df = spark.read().format("iceberg").load(location.toString());
+
+    List<Row> rows = df.collectAsList();
+    Assert.assertEquals("Record size should match with expected", expected.size(), rows.size());
+
+    for (int i = 0; i < expected.size(); i += 1) {
+      Row row = rows.get(i);
+      GenericRecord record = expected.get(i);
+      Assert.assertEquals(record.get(0), row.get(0));
+      Assert.assertEquals(record.get(1), row.get(1));
+    }
+  }
+
+  @Test
+  public void testGeometry() throws IOException {
+    Schema schema =
+        new Schema(
+            required(0, "id", Types.LongType.get()), optional(1, "geom", Types.GeometryType.get()));
+    List<GenericRecord> expected = Lists.newArrayList();
+    for (long k = 0; k < 100; k++) {
+      GenericRecord record = GenericRecord.create(schema);
+      record.setField("id", k);
+      record.setField(
+          "geom", TypeUtil.GeometryUtils.wkt2geometry(String.format("POINT (%d %d)", k, k)));
+      expected.add(record);
+    }
+    String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
+    for (String geometryEncoding : geometryEncodings) {
+      writeAndValidateGeoParquet(schema, geometryEncoding, expected);
     }
   }
 }

@@ -59,4 +59,10 @@ class SortOrderToSpark implements SortOrderVisitor<OrderField> {
   public OrderField hour(String sourceName, int id, SortDirection direction, NullOrder nullOrder) {
     return OrderField.hour(sourceName, direction, nullOrder);
   }
+
+  @Override
+  public OrderField xz2(
+      String sourceName, int id, int resolution, SortDirection direction, NullOrder nullOrder) {
+    return OrderField.xz2(sourceName, resolution, direction, nullOrder);
+  }
 }

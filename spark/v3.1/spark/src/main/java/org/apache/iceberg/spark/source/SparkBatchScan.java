@@ -22,6 +22,7 @@ import java.io.Serializable;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.CombinedScanTask;
 import org.apache.iceberg.FileFormat;
@@ -30,10 +31,14 @@ import org.apache.iceberg.Schema;
 import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.SnapshotSummary;
 import org.apache.iceberg.Table;
+import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.hadoop.HadoopInputFile;
 import org.apache.iceberg.hadoop.Util;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
+import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
@@ -59,7 +64,7 @@ import org.apache.spark.sql.vectorized.ColumnarBatch;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
+public abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchScan.class);
 
   private final JavaSparkContext sparkContext;
@@ -80,10 +85,23 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        expectedSchema,
+        filters);
+  }
 
+  SparkBatchScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
     SparkSchemaUtil.validateMetadataColumnReferences(table.schema(), expectedSchema);
 
-    this.sparkContext = JavaSparkContext.fromSparkContext(spark.sparkContext());
+    this.sparkContext = sparkContext;
     this.table = table;
     this.readConf = readConf;
     this.caseSensitive = readConf.caseSensitive();
@@ -93,8 +111,47 @@ abstract class SparkBatchScan implements Scan, Batch, SupportsReportStatistics {
     this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
   }
 
+  public SparkBatchScan withExpressions(List<Expression> newFilters) {
+    List<Expression> newFilterExpressions = Lists.newArrayList(this.filterExpressions());
+    Schema schema = this.table().schema();
+    boolean hasChanged = false;
+    Set<String> filterExprSet =
+        Sets.newHashSet(newFilterExpressions.stream().map(Object::toString).iterator());
+    for (Expression expr : newFilters) {
+      if (filterExprSet.contains(expr.toString())) {
+        continue;
+      }
+      try {
+        Binder.bind(schema.asStruct(), expr, this.caseSensitive());
+        newFilterExpressions.add(expr);
+        filterExprSet.add(expr.toString());
+        hasChanged = true;
+      } catch (ValidationException e) {
+        LOG.info(
+            "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
+            expr,
+            e.getMessage());
+      }
+    }
+    if (hasChanged) {
+      return withExpressionsInternal(newFilterExpressions);
+    } else {
+      return this;
+    }
+  }
+
+  protected abstract SparkBatchScan withExpressionsInternal(List<Expression> newExpressions);
+
+  protected JavaSparkContext sparkContext() {
+    return sparkContext;
+  }
+
   protected Table table() {
     return table;
+  }
+
+  protected SparkReadConf readConf() {
+    return readConf;
   }
 
   protected boolean caseSensitive() {

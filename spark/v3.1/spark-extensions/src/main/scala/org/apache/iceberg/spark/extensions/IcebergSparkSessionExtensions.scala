@@ -24,6 +24,8 @@ import org.apache.spark.sql.catalyst.analysis.AlignRowLevelOperations
 import org.apache.spark.sql.catalyst.analysis.ProcedureArgumentCoercion
 import org.apache.spark.sql.catalyst.analysis.ResolveProcedures
 import org.apache.spark.sql.catalyst.analysis.RowLevelOperationsPredicateCheck
+import org.apache.spark.sql.catalyst.expressions.GeometryExpressions
+import org.apache.spark.sql.catalyst.optimizer.GeometryPredicatePushDown
 import org.apache.spark.sql.catalyst.optimizer.OptimizeConditionsInRowLevelOperations
 import org.apache.spark.sql.catalyst.optimizer.PullupCorrelatedPredicatesInRowLevelOperations
 import org.apache.spark.sql.catalyst.optimizer.RewriteDelete
@@ -31,10 +33,17 @@ import org.apache.spark.sql.catalyst.optimizer.RewriteMergeInto
 import org.apache.spark.sql.catalyst.optimizer.RewriteUpdate
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
+import org.apache.spark.sql.iceberg.udt.UDTRegistration
 
 class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
   override def apply(extensions: SparkSessionExtensions): Unit = {
+    // user defined types
+    UDTRegistration.registerTypes()
+
+    // user defined functions
+    GeometryExpressions.registerFunctions(extensions)
+
     // parser extensions
     extensions.injectParser { case (_, parser) => new IcebergSparkSqlExtensionsParser(parser) }
 
@@ -50,6 +59,12 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
     extensions.injectOptimizerRule { spark => RewriteDelete(spark) }
     extensions.injectOptimizerRule { spark => RewriteUpdate(spark) }
     extensions.injectOptimizerRule { spark => RewriteMergeInto(spark) }
+
+    // geometry related extensions
+    extensions.injectCheckRule(spark => {
+      spark.experimental.extraOptimizations ++= Seq(GeometryPredicatePushDown)
+      _ => ()
+    })
 
     // planner extensions
     extensions.injectPlannerStrategy { spark => ExtendedDataSourceV2Strategy(spark) }
