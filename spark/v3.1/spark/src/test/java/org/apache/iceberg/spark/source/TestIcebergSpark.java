@@ -28,7 +28,9 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.GeometryExpressions;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.iceberg.udt.UDTRegistration;
 import org.apache.spark.sql.types.CharType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DecimalType;
@@ -38,6 +40,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestIcebergSpark {
 
@@ -201,5 +204,41 @@ public class TestIcebergSpark {
                     spark, "iceberg_bucket_float_16", DataTypes.FloatType, 16))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessage("Cannot bucket by type: float");
+  }
+
+  @Test
+  public void testGeometryFunctions() {
+    UDTRegistration.registerTypes();
+    GeometryExpressions.registerFunctions(spark.sessionState().functionRegistry());
+    List<Row> results =
+        spark
+            .sql(
+                "SELECT IcebergSTGeomFromText('POINT (10 20)'),"
+                    + "IcebergSTAsText(IcebergSTGeomFromText('POINT (10 20)')),"
+                    + "IcebergXZ2(IcebergSTGeomFromText('POINT (10 20)'), 1)")
+            .collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertTrue(results.get(0).get(0) instanceof Geometry);
+    Assert.assertEquals(results.get(0).get(1), results.get(0).get(0).toString());
+    Assert.assertEquals(4L, results.get(0).getLong(2));
+    results =
+        spark
+            .sql(
+                "SELECT "
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
+                    + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (1 1)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))')),"
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 2)')),"
+                    + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 3)')),"
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (3 3)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'))")
+            .collectAsList();
+    Assert.assertEquals(1, results.size());
+    Row result = results.get(0);
+    Assert.assertTrue(result.getBoolean(0));
+    Assert.assertTrue(result.getBoolean(1));
+    Assert.assertTrue(result.getBoolean(2));
+    Assert.assertFalse(result.getBoolean(3));
+    Assert.assertFalse(result.getBoolean(4));
+    Assert.assertFalse(result.getBoolean(5));
   }
 }
