@@ -24,6 +24,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT;
 import org.apache.spark.sql.types.ArrayType$;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
@@ -103,17 +104,17 @@ class TypeToSparkType extends TypeUtil.SchemaVisitor<DataType> {
       case TIMESTAMP:
         return TimestampType$.MODULE$;
       case STRING:
-        return StringType$.MODULE$;
       case UUID:
         // use String
         return StringType$.MODULE$;
       case FIXED:
-        return BinaryType$.MODULE$;
       case BINARY:
         return BinaryType$.MODULE$;
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return DecimalType$.MODULE$.apply(decimal.precision(), decimal.scale());
+      case GEOMETRY:
+        return new GeometryUDT();
       default:
         throw new UnsupportedOperationException(
             "Cannot convert unknown type to Spark: " + primitive);
