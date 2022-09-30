@@ -51,6 +51,17 @@ class OrderField implements SortOrder {
         toSpark(nullOrder));
   }
 
+  static OrderField xz2(
+      String fieldName,
+      int resolution,
+      org.apache.iceberg.SortDirection direction,
+      NullOrder nullOrder) {
+    return new OrderField(
+        Expressions.apply("xz2", Expressions.column(fieldName), Expressions.literal(resolution)),
+        toSpark(direction),
+        toSpark(nullOrder));
+  }
+
   static OrderField year(
       String fieldName, org.apache.iceberg.SortDirection direction, NullOrder nullOrder) {
     return new OrderField(Expressions.years(fieldName), toSpark(direction), toSpark(nullOrder));

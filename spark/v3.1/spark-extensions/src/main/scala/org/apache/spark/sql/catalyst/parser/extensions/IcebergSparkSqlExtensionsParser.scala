@@ -100,20 +100,38 @@ class IcebergSparkSqlExtensionsParser(delegate: ParserInterface) extends ParserI
     if (isIcebergCommand(sqlTextAfterSubstitution)) {
       parse(sqlTextAfterSubstitution) { parser => astBuilder.visit(parser.singleStatement()) }.asInstanceOf[LogicalPlan]
     } else {
-      delegate.parsePlan(sqlText)
+      if (isColumnTypeRelatedCommand(sqlTextAfterSubstitution)) {
+        IcebergGeometrySqlParser.parsePlan(sqlText)
+      } else {
+        delegate.parsePlan(sqlText)
+      }
     }
   }
 
+  private def normalizedSql(sqlText: String): String = {
+    sqlText.toLowerCase(Locale.ROOT).trim()
+      // Strip simple SQL comments that terminate a line, e.g. comments starting with `--` .
+      .replaceAll("--.*?\\n", " ")
+      // Strip newlines.
+      .replaceAll("\\s+", " ")
+      // Strip comments of the form  /* ... */. This must come after stripping newlines so that
+      // comments that span multiple lines are caught.
+      .replaceAll("/\\*.*?\\*/", " ")
+      .trim()
+  }
+
+  private def isColumnTypeRelatedCommand(sqlText: String): Boolean = {
+    val normalized = normalizedSql(sqlText)
+    // commands that may need "geometry" support
+    normalized.startsWith("create") || (
+      normalized.startsWith("alter table") && (
+        normalized.contains("add column") ||
+        normalized.contains("alter column"))
+    )
+  }
+
   private def isIcebergCommand(sqlText: String): Boolean = {
-    val normalized = sqlText.toLowerCase(Locale.ROOT).trim()
-        // Strip simple SQL comments that terminate a line, e.g. comments starting with `--`
-        .replaceAll("--.*?\\n", " ")
-        // Strip newlines.
-        .replaceAll("\\s+", " ")
-        // Strip comments of the form  /* ... */. This must come after stripping newlines so that
-        // comments that span multiple lines are caught.
-        .replaceAll("/\\*.*?\\*/", " ")
-        .trim()
+    val normalized = normalizedSql(sqlText)
     normalized.startsWith("call") || (
         normalized.startsWith("alter table") && (
             normalized.contains("add partition field") ||

@@ -32,9 +32,14 @@ import org.apache.iceberg.io.CloseableIterable;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkReadOptions;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 class SparkBatchQueryScan extends SparkBatchScan {
+
+  private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
 
   private final Long snapshotId;
   private final Long startSnapshotId;
@@ -52,8 +57,21 @@ class SparkBatchQueryScan extends SparkBatchScan {
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        expectedSchema,
+        filters);
+  }
 
-    super(spark, table, readConf, expectedSchema, filters);
+  SparkBatchQueryScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(sparkContext, table, readConf, expectedSchema, filters);
 
     this.snapshotId = readConf.snapshotId();
     this.asOfTimestamp = readConf.asOfTimestamp();
@@ -82,6 +100,16 @@ class SparkBatchQueryScan extends SparkBatchScan {
     this.splitSize = readConf.splitSizeOption();
     this.splitLookback = readConf.splitLookbackOption();
     this.splitOpenFileCost = readConf.splitOpenFileCostOption();
+  }
+
+  @Override
+  protected SparkBatchScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    return new SparkBatchQueryScan(
+        this.sparkContext(),
+        this.table(),
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions);
   }
 
   @Override
