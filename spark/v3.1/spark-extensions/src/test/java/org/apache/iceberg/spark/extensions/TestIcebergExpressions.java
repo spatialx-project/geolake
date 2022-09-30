@@ -25,6 +25,7 @@ import org.apache.spark.sql.Column;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.catalyst.expressions.IcebergTruncateTransform;
+import org.apache.spark.sql.catalyst.expressions.IcebergXZ2Transform;
 import org.junit.After;
 import org.junit.Test;
 
@@ -70,5 +71,26 @@ public class TestIcebergExpressions extends SparkExtensionsTestBase {
         "Should have expected rows",
         ImmutableList.of(row(100, 10000L, new BigDecimal("10.50"), "10", "12")),
         sql("SELECT int_c, long_c, dec_c, str_c, CAST(binary_c AS STRING) FROM v"));
+  }
+
+  @Test
+  public void testXZ2Expressions() {
+    sql("CREATE TABLE %s (id INT, geo geometry) USING iceberg", tableName);
+    sql(
+        "INSERT INTO %s VALUES (1, IcebergSTGeomFromText('POINT (-50 -50)')),"
+            + "(2, IcebergSTGeomFromText('POINT (50 -50)')),"
+            + "(3, IcebergSTGeomFromText('POINT (-50 50)')),"
+            + "(4, IcebergSTGeomFromText('POINT (50 50)'))",
+        tableName);
+
+    Dataset<Row> df = spark.sql("SELECT * FROM " + tableName);
+    df.select(
+            new Column(df.col("id").expr()),
+            new Column(new IcebergXZ2Transform(df.col("geo").expr(), 1)).as("geo_xz2_1"))
+        .createOrReplaceTempView("v");
+    assertEquals(
+        "Should have expected rows",
+        ImmutableList.of(row(1L), row(2L), row(3L), row(4L)),
+        sql("SELECT geo_xz2_1 FROM v ORDER BY id"));
   }
 }
