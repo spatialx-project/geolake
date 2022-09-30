@@ -37,6 +37,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.iceberg.read.SupportsFileFilter;
 import org.apache.spark.sql.connector.read.Statistics;
@@ -63,8 +64,23 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
       boolean ignoreResiduals,
       Schema expectedSchema,
       List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        readConf,
+        ignoreResiduals,
+        expectedSchema,
+        filters);
+  }
 
-    super(spark, table, readConf, expectedSchema, filters);
+  SparkMergeScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      SparkReadConf readConf,
+      boolean ignoreResiduals,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(sparkContext, table, readConf, expectedSchema, filters);
 
     this.table = table;
     this.ignoreResiduals = ignoreResiduals;
@@ -79,6 +95,12 @@ class SparkMergeScan extends SparkBatchScan implements SupportsFileFilter {
 
     // init files with an empty list if the table is empty to avoid picking any concurrent changes
     this.files = currentSnapshot == null ? Collections.emptyList() : null;
+  }
+
+  @Override
+  protected SparkBatchScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    return new SparkMergeScan(
+        sparkContext(), table, readConf(), ignoreResiduals, expectedSchema, newFilterExpressions);
   }
 
   Long snapshotId() {
