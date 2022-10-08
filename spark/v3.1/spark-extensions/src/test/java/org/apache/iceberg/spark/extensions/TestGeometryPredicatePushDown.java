@@ -87,7 +87,7 @@ public class TestGeometryPredicatePushDown extends SparkExtensionsTestBase {
       "PARTITIONED BY (truncate(data, 5), xz2(geo, 3))",
       "PARTITIONED BY (xz2(geo, 3), truncate(data, 5))"
     };
-    Pattern executedPlanPattern = Pattern.compile(".*BatchScan.*st_within\\(geo.*");
+    Pattern executedPlanPattern = Pattern.compile(".*BatchScan.*st_coveredBy\\(geo.*");
     for (String partition : partitions) {
       sql("DROP TABLE IF EXISTS %s", tableName);
       sql(
