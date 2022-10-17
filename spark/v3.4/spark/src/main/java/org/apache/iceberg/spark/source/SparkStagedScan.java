@@ -24,6 +24,7 @@ import org.apache.iceberg.ScanTask;
 import org.apache.iceberg.ScanTaskGroup;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
+import org.apache.iceberg.expressions.Expression;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.spark.ScanTaskSetManager;
 import org.apache.iceberg.spark.SparkReadConf;
@@ -48,16 +49,20 @@ class SparkStagedScan extends SparkScan {
     this.openFileCost = readConf.splitOpenFileCost();
   }
 
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    return this;
+  }
+
   @Override
   protected List<ScanTaskGroup<ScanTask>> taskGroups() {
     if (taskGroups == null) {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
       ValidationException.check(
-          tasks != null,
-          "Task set manager has no tasks for table %s with task set ID %s",
-          table(),
-          taskSetId);
+        tasks != null,
+        "Task set manager has no tasks for table %s with task set ID %s",
+        table(),
+        taskSetId);
 
       this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
     }

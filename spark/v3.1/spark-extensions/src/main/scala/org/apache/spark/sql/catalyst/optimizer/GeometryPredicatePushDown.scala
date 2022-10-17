@@ -35,7 +35,7 @@ import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
+import org.apache.spark.sql.catalyst.utils.PlanUtils
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits.parseColumnPath
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.execution.datasources.PushableColumn
@@ -68,6 +68,10 @@ object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper 
       } else {
         filter
       }
+  }
+
+  def isIcebergRelation(plan: LogicalPlan): Boolean = {
+    PlanUtils.isIcebergRelation(plan)
   }
 
   def filtersToIcebergSpatialPredicates(

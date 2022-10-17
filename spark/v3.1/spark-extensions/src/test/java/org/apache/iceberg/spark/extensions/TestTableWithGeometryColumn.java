@@ -159,5 +159,18 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
             "SELECT * FROM %s WHERE IcebergSTCoveredBy(geo, IcebergSTGeomFromText('%s')) ORDER BY id",
             tableName, queryWindow.toString());
     assertEquals(hint + " Spatial query should work as expected", expected, actual);
+
+    // Update records with spatial predicate
+    sql(
+        "UPDATE %s SET data = 'updated' WHERE IcebergSTCoveredBy(geo, IcebergSTGeomFromText('%s'))",
+        tableName, queryWindow.toString());
+    Assert.assertEquals(
+        hint + " Should have updated " + expected.size() + " rows",
+        (long) expected.size(),
+        scalarSql("SELECT COUNT(*) FROM %s WHERE data = 'updated'", tableName));
+    Assert.assertEquals(
+        hint + " Total row number should not change after update",
+        100L,
+        scalarSql("SELECT COUNT(*) FROM %s", tableName));
   }
 }
