@@ -39,6 +39,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -74,8 +75,26 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
+    this(
+        JavaSparkContext.fromSparkContext(spark.sparkContext()),
+        table,
+        scan,
+        snapshot,
+        readConf,
+        expectedSchema,
+        filters);
+  }
 
-    super(spark, table, readConf, expectedSchema, filters);
+  SparkCopyOnWriteScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      TableScan scan,
+      Snapshot snapshot,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+
+    super(sparkContext, table, readConf, expectedSchema, filters);
 
     this.scan = scan;
     this.snapshot = snapshot;
@@ -85,6 +104,21 @@ class SparkCopyOnWriteScan extends SparkScan implements SupportsRuntimeFiltering
       this.tasks = Collections.emptyList();
       this.filteredLocations = Collections.emptySet();
     }
+  }
+
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    TableScan newScan = this.scan;
+    for (Expression expr : newFilterExpressions) {
+      newScan = newScan.filter(expr);
+    }
+    return new SparkCopyOnWriteScan(
+        this.sparkContext(),
+        this.table(),
+        newScan,
+        this.snapshot,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions);
   }
 
   Long snapshotId() {
