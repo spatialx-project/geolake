@@ -22,6 +22,8 @@ package org.apache.spark.sql.catalyst.optimizer
 import org.apache.iceberg.expressions.{Expression => IcebergExpression}
 import org.apache.iceberg.expressions.Expressions
 import org.apache.iceberg.spark.source.SparkBatchQueryScan
+import org.apache.iceberg.spark.source.SparkScan
+import org.apache.iceberg.spark.source.SparkTable
 import org.apache.spark.sql.catalyst.expressions.And
 import org.apache.spark.sql.catalyst.expressions.Expression
 import org.apache.spark.sql.catalyst.expressions.IcebergSTCoveredBy
@@ -34,12 +36,14 @@ import org.apache.spark.sql.catalyst.expressions.PredicateHelper
 import org.apache.spark.sql.catalyst.expressions.SubqueryExpression
 import org.apache.spark.sql.catalyst.plans.logical.Filter
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
+import org.apache.spark.sql.catalyst.plans.logical.SubqueryAlias
 import org.apache.spark.sql.catalyst.rules.Rule
-import org.apache.spark.sql.catalyst.utils.PlanUtils.isIcebergRelation
 import org.apache.spark.sql.connector.catalog.CatalogV2Implicits.parseColumnPath
+import org.apache.spark.sql.connector.write.RowLevelOperationTable
 import org.apache.spark.sql.execution.datasources.DataSourceStrategy
 import org.apache.spark.sql.execution.datasources.PushableColumn
 import org.apache.spark.sql.execution.datasources.PushableColumnBase
+import org.apache.spark.sql.execution.datasources.v2.DataSourceV2Relation
 import org.apache.spark.sql.execution.datasources.v2.DataSourceV2ScanRelation
 import org.apache.spark.sql.iceberg.udt.GeometrySerializer
 
@@ -56,7 +60,7 @@ object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper 
 
   override def apply(plan: LogicalPlan): LogicalPlan = plan transform {
     case filter @ Filter(condition, scanRel: DataSourceV2ScanRelation) if isIcebergRelation(scanRel.relation) =>
-      val scan = scanRel.scan.asInstanceOf[SparkBatchQueryScan]
+      val scan = scanRel.scan.asInstanceOf[SparkScan]
       val filters = splitConjunctivePredicates(condition)
       val normalizedFilters = DataSourceStrategy.normalizeExprs(filters, scanRel.output)
       val (_, normalizedFiltersWithoutSubquery) = normalizedFilters.partition(SubqueryExpression.hasSubquery)
@@ -68,6 +72,20 @@ object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper 
       } else {
         filter
       }
+  }
+
+  def isIcebergRelation(plan: LogicalPlan): Boolean = {
+    def isIcebergTable(relation: DataSourceV2Relation): Boolean = relation.table match {
+      case t: RowLevelOperationTable => t.table.isInstanceOf[SparkTable]
+      case _: SparkTable => true
+      case _ => false
+    }
+
+    plan match {
+      case s: SubqueryAlias => isIcebergRelation(s.child)
+      case r: DataSourceV2Relation => isIcebergTable(r)
+      case _ => false
+    }
   }
 
   def filtersToIcebergSpatialPredicates(

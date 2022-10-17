@@ -77,6 +77,11 @@ public class TestGeometryPredicatePushDown extends SparkExtensionsTestBase {
             + " WHERE data > 'str_5' AND "
             + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON((50 50, 80 50, 80 80, 50 80, 50 50))'), geo) "
             + "ORDER BY id";
+    String testUpdateSql =
+        "UPDATE "
+            + tableName
+            + " SET data = 'updated' "
+            + "WHERE IcebergSTCovers(IcebergSTGeomFromText('POLYGON((50 50, 80 50, 80 80, 50 80, 50 50))'), geo)";
     List<Object[]> expectedRows = sql(testSql);
 
     // Run the same query on the same data with different partition specs.
@@ -108,6 +113,8 @@ public class TestGeometryPredicatePushDown extends SparkExtensionsTestBase {
       Assert.assertTrue(executedPlanPattern.matcher(executedPlan).find());
       List<Object[]> queryResult = sql(testSql);
       assertEquals("Should have expected rows", expectedRows, queryResult);
+      executedPlan = spark.sql(testUpdateSql).queryExecution().executedPlan().toString();
+      Assert.assertTrue(executedPlanPattern.matcher(executedPlan).find());
     }
   }
 }
