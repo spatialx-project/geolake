@@ -103,40 +103,18 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.runtimeFilterExpressions = Lists.newArrayList();
   }
 
-  public SparkBatchQueryScan withExpressions(List<Expression> newFilters) {
-    List<Expression> newFilterExpressions = Lists.newArrayList(this.filterExpressions());
-    Schema schema = this.table().schema();
-    boolean caseSensitive = this.caseSensitive();
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
     TableScan newScan = this.scan;
-    Set<String> filterExprSet =
-        Sets.newHashSet(newFilterExpressions.stream().map(Object::toString).iterator());
-    for (Expression expr : newFilters) {
-      if (filterExprSet.contains(expr.toString())) {
-        continue;
-      }
-      try {
-        Binder.bind(schema.asStruct(), expr, caseSensitive);
-        newFilterExpressions.add(expr);
-        filterExprSet.add(expr.toString());
-        newScan = newScan.filter(expr);
-      } catch (ValidationException e) {
-        LOG.info(
-            "Failed to bind expression to table schema, skipping push down for this expression: {}. {}",
-            expr,
-            e.getMessage());
-      }
+    for (Expression expr : newFilterExpressions) {
+      newScan = newScan.filter(expr);
     }
-    if (newScan != scan) {
-      return new SparkBatchQueryScan(
-          this.sparkContext(),
-          this.table(),
-          newScan,
-          this.readConf(),
-          this.expectedSchema(),
-          newFilterExpressions);
-    } else {
-      return this;
-    }
+    return new SparkBatchQueryScan(
+        this.sparkContext(),
+        this.table(),
+        newScan,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions);
   }
 
   Long snapshotId() {
