@@ -284,8 +284,8 @@ public class GeoParquetValueReaders {
       List<Coordinate> coordinates = Lists.newArrayList();
       List<Double> zCoordinates = readList(zColumn);
       List<Double> mCoordinates = readList(mColumn);
-      boolean hasZ = (!zCoordinates.isEmpty());
-      boolean hasM = (!mCoordinates.isEmpty());
+      boolean hasZ = !zCoordinates.isEmpty();
+      boolean hasM = !mCoordinates.isEmpty();
       int coordIndex = 0;
       do {
         if (xColumn.currentDefinitionLevel() > definitionLevel) {
