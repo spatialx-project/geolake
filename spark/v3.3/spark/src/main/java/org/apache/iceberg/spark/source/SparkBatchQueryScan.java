@@ -87,7 +87,7 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   SparkBatchQueryScan(
       JavaSparkContext sparkContext,
       Table table,
-      TableScan scan,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
       SparkReadConf readConf,
       Schema expectedSchema,
       List<Expression> filters) {
@@ -102,9 +102,9 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
   }
 
   public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
-    TableScan newScan = this.scan;
+    Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> newScan = this.scan();
     for (Expression expr : newFilterExpressions) {
-      newScan = newScan.filter(expr);
+      newScan = (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>) newScan.filter(expr);
     }
     return new SparkBatchQueryScan(
         this.sparkContext(),

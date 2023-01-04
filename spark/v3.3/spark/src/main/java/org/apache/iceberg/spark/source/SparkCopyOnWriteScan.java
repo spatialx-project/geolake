@@ -83,7 +83,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   SparkCopyOnWriteScan(
       JavaSparkContext sparkContext,
       Table table,
-      TableScan scan,
+      BatchScan scan,
       Snapshot snapshot,
       SparkReadConf readConf,
       Schema expectedSchema,
@@ -99,7 +99,7 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
   }
 
   public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
-    TableScan newScan = this.scan;
+    BatchScan newScan = (BatchScan) this.scan();
     for (Expression expr : newFilterExpressions) {
       newScan = newScan.filter(expr);
     }
