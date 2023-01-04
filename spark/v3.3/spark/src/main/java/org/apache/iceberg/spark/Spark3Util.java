@@ -293,9 +293,7 @@ public class Spark3Util {
     @Override
     public Transform xz2(int fieldId, String sourceName, int sourceId, int resolution) {
       return Expressions.apply(
-          "xz2",
-          Expressions.column(quotedName(sourceId)),
-          Expressions.literal(resolution));
+          "xz2", Expressions.column(quotedName(sourceId)), Expressions.literal(resolution));
     }
 
     @Override
