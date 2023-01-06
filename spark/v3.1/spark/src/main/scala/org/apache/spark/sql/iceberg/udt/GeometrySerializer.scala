@@ -18,9 +18,8 @@
  */
 package org.apache.spark.sql.iceberg.udt
 
+import org.apache.iceberg.geometry.serde
 import org.locationtech.jts.geom.Geometry
-import org.locationtech.jts.io.WKBReader
-import org.locationtech.jts.io.WKBWriter
 
 /**
  * SerDe using the WKB reader and writer objects
@@ -34,8 +33,7 @@ object GeometrySerializer {
    * @return Array of bites represents this geometry
    */
   def serialize(geometry: Geometry): Array[Byte] = {
-    val writer = new WKBWriter(getDimension(geometry), 2, true)
-    writer.write(geometry)
+    serde.GeometrySerializer.serialize(geometry)
   }
 
   /**
@@ -51,15 +49,6 @@ object GeometrySerializer {
   }
 
   def deserialize(values: Array[Byte]): Geometry = {
-    val reader = new WKBReader()
-    reader.read(values)
-  }
-
-  private def getDimension(geometry: Geometry): Int = {
-    if (geometry.getCoordinate != null && !geometry.getCoordinate.getZ.isNaN) {
-      3
-    } else {
-      2
-    }
+    serde.GeometrySerializer.deserialize(values)
   }
 }

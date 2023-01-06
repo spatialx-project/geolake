@@ -36,6 +36,8 @@ import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
 
 final class ArrowVectorAccessorFactory
     extends GenericArrowVectorAccessorFactory<
@@ -155,15 +157,23 @@ final class ArrowVectorAccessorFactory
   private static class GeometryWKBAccessor
       extends ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> {
     private final VarBinaryVector vector;
+    private final WKBReader wkbReader;
 
     GeometryWKBAccessor(ValueVector vector) {
       super(vector);
       this.vector = (VarBinaryVector) vector;
+      this.wkbReader = new WKBReader();
     }
 
     @Override
     public byte[] getBinary(int rowId) {
-      return vector.get(rowId);
+      byte[] wkb = vector.get(rowId);
+      try {
+        Geometry geometry = wkbReader.read(wkb);
+        return GeometrySerializer.serialize(geometry);
+      } catch (ParseException e) {
+        throw new IllegalArgumentException("Failed to parse WKB to geometry", e);
+      }
     }
   }
 
