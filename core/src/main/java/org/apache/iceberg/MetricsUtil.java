@@ -20,6 +20,7 @@ package org.apache.iceberg;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
 
+import java.nio.ByteBuffer;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -27,6 +28,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.iceberg.expressions.Pair;
 import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -108,22 +110,14 @@ public class MetricsUtil {
               "lower_bound",
               "Lower bound",
               DataFile.LOWER_BOUNDS,
-              Types.NestedField::type,
-              (file, field) ->
-                  file.lowerBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.lowerBounds().get(field.fieldId()))),
+              new BoundTypeFunction(),
+              new LowerBoundsMetricFunction()),
           new ReadableMetricColDefinition(
               "upper_bound",
               "Upper bound",
               DataFile.UPPER_BOUNDS,
-              Types.NestedField::type,
-              (file, field) ->
-                  file.upperBounds() == null
-                      ? null
-                      : Conversions.fromByteBuffer(
-                          field.type(), file.upperBounds().get(field.fieldId()))));
+              new BoundTypeFunction(),
+              new UpperBoundsMetricFunction()));
 
   public static final String READABLE_METRICS = "readable_metrics";
 
@@ -184,6 +178,52 @@ public class MetricsUtil {
 
     Object value(ContentFile<?> dataFile, Types.NestedField dataField) {
       return metricFunction.metric(dataFile, dataField);
+    }
+  }
+
+  static class BoundTypeFunction implements ReadableMetricColDefinition.TypeFunction {
+    @Override
+    public Type type(Types.NestedField field) {
+      Type type = field.type();
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        return Types.StringType.get();
+      } else {
+        return type;
+      }
+    }
+  }
+
+  abstract static class BoundsMetricFunction implements ReadableMetricColDefinition.MetricFunction {
+    @Override
+    public Object metric(ContentFile<?> file, Types.NestedField field) {
+      Map<Integer, ByteBuffer> bounds = getBounds(file);
+      if (bounds == null) {
+        return null;
+      }
+      Type type = field.type();
+      if (type.typeId() == Type.TypeID.GEOMETRY) {
+        Pair<Double, Double> geometryBound =
+            Conversions.fromByteBuffer(Types.GeometryBoundType.get(), bounds.get(field.fieldId()));
+        return geometryBound.toString();
+      } else {
+        return Conversions.fromByteBuffer(type, bounds.get(field.fieldId()));
+      }
+    }
+
+    protected abstract Map<Integer, ByteBuffer> getBounds(ContentFile<?> file);
+  }
+
+  static class LowerBoundsMetricFunction extends BoundsMetricFunction {
+    @Override
+    protected Map<Integer, ByteBuffer> getBounds(ContentFile<?> file) {
+      return file.lowerBounds();
+    }
+  }
+
+  static class UpperBoundsMetricFunction extends BoundsMetricFunction {
+    @Override
+    protected Map<Integer, ByteBuffer> getBounds(ContentFile<?> file) {
+      return file.upperBounds();
     }
   }
 

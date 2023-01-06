@@ -33,7 +33,6 @@ import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.expressions.Literal;
 import org.apache.iceberg.expressions.Pair;
 import org.apache.iceberg.util.UUIDUtil;
-import org.locationtech.jts.geom.Geometry;
 
 public class Conversions {
 
@@ -119,8 +118,6 @@ public class Conversions {
         return (ByteBuffer) value;
       case DECIMAL:
         return ByteBuffer.wrap(((BigDecimal) value).unscaledValue().toByteArray());
-      case GEOMETRY:
-        return TypeUtil.GeometryUtils.geometry2byteBuffer((Geometry) value);
       case GEOMETRY_BOUND:
         Pair<Double, Double> pair = (Pair<Double, Double>) value;
         return ByteBuffer.allocate(16)
@@ -137,6 +134,7 @@ public class Conversions {
     return (T) internalFromByteBuffer(type, buffer);
   }
 
+  @SuppressWarnings("unchecked")
   private static Object internalFromByteBuffer(Type type, ByteBuffer buffer) {
     if (buffer == null) {
       return null;

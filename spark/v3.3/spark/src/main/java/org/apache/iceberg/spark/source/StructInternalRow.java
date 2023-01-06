@@ -41,6 +41,7 @@ import org.apache.spark.sql.catalyst.util.ArrayBasedMapData;
 import org.apache.spark.sql.catalyst.util.ArrayData;
 import org.apache.spark.sql.catalyst.util.GenericArrayData;
 import org.apache.spark.sql.catalyst.util.MapData;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType;
 import org.apache.spark.sql.types.BooleanType;
@@ -60,6 +61,7 @@ import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampType;
 import org.apache.spark.unsafe.types.CalendarInterval;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
 
 class StructInternalRow extends InternalRow {
   private final Types.StructType type;
@@ -191,6 +193,8 @@ class StructInternalRow extends InternalRow {
       return ByteBuffers.toByteArray((ByteBuffer) bytes);
     } else if (bytes instanceof byte[]) {
       return (byte[]) bytes;
+    } else if (bytes instanceof Geometry) {
+      return GeometrySerializer.serialize((Geometry) bytes);
     } else {
       throw new IllegalStateException(
           "Unknown type for binary field. Type name: " + bytes.getClass().getName());

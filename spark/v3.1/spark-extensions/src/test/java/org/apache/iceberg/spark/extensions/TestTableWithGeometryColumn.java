@@ -69,7 +69,7 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMergeInfo() throws NoSuchTableException {
+  public void testMergeInto() throws NoSuchTableException {
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
     String[] vectorizationSetting = {"true", "false"};
     for (String geometryEncoding : geometryEncodings) {
@@ -172,5 +172,9 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
         hint + " Total row number should not change after update",
         100L,
         scalarSql("SELECT COUNT(*) FROM %s", tableName));
+
+    // Show table metadata
+    List<Object[]> files = sql("SELECT * FROM %s.files", tableName);
+    Assert.assertTrue(files.size() > 0);
   }
 }
