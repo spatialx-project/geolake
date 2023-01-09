@@ -18,14 +18,13 @@
  */
 package org.apache.spark.sql.iceberg.udt
 
-import org.apache.spark.sql.catalyst.util.GenericArrayData
 import org.apache.spark.sql.types._
 import org.json4s.JsonAST.JValue
 import org.json4s.JsonDSL._
 import org.locationtech.jts.geom.Geometry
 
 class GeometryUDT extends UserDefinedType[Geometry] {
-  override def sqlType: DataType = ArrayType(ByteType, containsNull = false)
+  override def sqlType: DataType = BinaryType
 
   // TODO: we deliberately leave this unchanged, so that the GeometryUDT will be
   //  compatible with pyspark binding of sedona. We'll implement our own pyspark UDT
@@ -34,7 +33,7 @@ class GeometryUDT extends UserDefinedType[Geometry] {
 
   override def userClass: Class[Geometry] = classOf[Geometry]
 
-  override def serialize(obj: Geometry): GenericArrayData =
+  override def serialize(obj: Geometry): Array[Byte] =
     GeometrySerializer.serialize(obj)
 
   override def deserialize(datum: Any): Geometry = {

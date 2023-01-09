@@ -498,40 +498,40 @@ public class SparkParquetWriters {
   }
 
   private static class GeometryWKBWriter
-      extends GeoParquetValueWriters.GeometryGenericWKBWriter<ArrayData> {
+      extends GeoParquetValueWriters.GeometryGenericWKBWriter<byte[]> {
     GeometryWKBWriter(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public void write(int repetitionLevel, ArrayData arrayData) {
-      Geometry geom = GeometrySerializer.deserialize(arrayData);
+    public void write(int repetitionLevel, byte[] bytes) {
+      Geometry geom = GeometrySerializer.deserialize(bytes);
       writeJtsGeometry(repetitionLevel, geom);
     }
   }
 
   private static class GeometryWKBBBoxWriter
-      extends GeoParquetValueWriters.GeometryGenericWKBBBoxWriter<ArrayData> {
+      extends GeoParquetValueWriters.GeometryGenericWKBBBoxWriter<byte[]> {
     GeometryWKBBBoxWriter(MessageType type, String[] prefix) {
       super(type, prefix);
     }
 
     @Override
-    public void write(int repetitionLevel, ArrayData arrayData) {
-      Geometry geom = GeometrySerializer.deserialize(arrayData);
+    public void write(int repetitionLevel, byte[] bytes) {
+      Geometry geom = GeometrySerializer.deserialize(bytes);
       writeJtsGeometry(repetitionLevel, geom);
     }
   }
 
   private static class GeometryNestedListWriter
-      extends GeoParquetValueWriters.GeometryGenericNestedListWriter<ArrayData> {
+      extends GeoParquetValueWriters.GeometryGenericNestedListWriter<byte[]> {
     GeometryNestedListWriter(MessageType type, String[] prefix) {
       super(type, prefix);
     }
 
     @Override
-    public void write(int repetitionLevel, ArrayData arrayData) {
-      Geometry geom = GeometrySerializer.deserialize(arrayData);
+    public void write(int repetitionLevel, byte[] bytes) {
+      Geometry geom = GeometrySerializer.deserialize(bytes);
       writeJtsGeometry(repetitionLevel, geom);
     }
   }

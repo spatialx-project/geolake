@@ -60,7 +60,7 @@ public class GeoParquetUtil {
 
   private GeoParquetUtil() {}
 
-  private static final String VERSION = "0.4.0";
+  private static final String VERSION = "1.0.0-beta.1";
 
   public static final List<org.apache.parquet.schema.Type> NESTED_LIST_GEOMETRY_FIELDS =
       ImmutableList.of(
@@ -278,13 +278,9 @@ public class GeoParquetUtil {
       throws IOException {
     generator.writeObjectFieldStart(field.name());
     generator.writeStringField("encoding", encoding);
-    generator.writeStringField("geometry_type", "Unknown");
-    generator.writeObjectFieldStart("crs");
-    generator.writeObjectFieldStart("id");
-    generator.writeStringField("authority", "OGC");
-    generator.writeStringField("code", "CRS84");
-    generator.writeEndObject();
-    generator.writeEndObject();
+    // Write geometry_types as [], which means that it may contain any geometry types
+    generator.writeArrayFieldStart("geometry_types");
+    generator.writeEndArray();
     generator.writeStringField("edges", "planar");
     if (metrics != null) {
       Pair<Double, Double> lowerBound = (Pair<Double, Double>) metrics.lowerBound();
