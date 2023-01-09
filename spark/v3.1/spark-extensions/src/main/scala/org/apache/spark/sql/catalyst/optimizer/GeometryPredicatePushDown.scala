@@ -86,10 +86,14 @@ object GeometryPredicatePushDown extends Rule[LogicalPlan] with PredicateHelper 
     pushableColumn: PushableColumnBase): Option[IcebergExpression] = {
     predicate match {
       case And(left, right) =>
-        for {
-          icebergLeft <- translateToIcebergSpatialPredicate(left, pushableColumn)
-          icebergRight <- translateToIcebergSpatialPredicate(right, pushableColumn)
-        } yield Expressions.and(icebergLeft, icebergRight)
+        val icebergLeft = translateToIcebergSpatialPredicate(left, pushableColumn)
+        val icebergRight = translateToIcebergSpatialPredicate(right, pushableColumn)
+        (icebergLeft, icebergRight) match {
+          case (Some(left), Some(right)) => Some(Expressions.and(left, right))
+          case (Some(left), None) => Some(left)
+          case (None, Some(right)) => Some(right)
+          case _ => None
+        }
 
       case Or(left, right) =>
         for {

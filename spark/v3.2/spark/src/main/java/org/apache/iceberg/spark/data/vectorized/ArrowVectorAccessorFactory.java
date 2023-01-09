@@ -30,14 +30,12 @@ import org.apache.iceberg.arrow.vectorized.ArrowGeometryVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory;
 import org.apache.iceberg.arrow.vectorized.VectorHolder;
-import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector;
-import org.apache.spark.sql.types.DataTypes;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
 import org.locationtech.jts.geom.Geometry;
-import org.locationtech.jts.io.WKBWriter;
 
 final class ArrowVectorAccessorFactory
     extends GenericArrowVectorAccessorFactory<
@@ -164,11 +162,8 @@ final class ArrowVectorAccessorFactory
     }
 
     @Override
-    public ColumnarArray getArray(int rowId) {
-      byte[] bytes = vector.get(rowId);
-      OnHeapColumnVector columnVector = new OnHeapColumnVector(bytes.length, DataTypes.ByteType);
-      columnVector.putBytes(0, bytes.length, bytes, 0);
-      return new ColumnarArray(columnVector, 0, bytes.length);
+    public byte[] getBinary(int rowId) {
+      return vector.get(rowId);
     }
   }
 
@@ -188,13 +183,9 @@ final class ArrowVectorAccessorFactory
     }
 
     @Override
-    public ColumnarArray getArray(int rowId) {
+    public byte[] getBinary(int rowId) {
       Geometry geometry = accessor.getGeometry(rowId);
-      WKBWriter wkbWriter = new WKBWriter();
-      byte[] bytes = wkbWriter.write(geometry);
-      OnHeapColumnVector columnVector = new OnHeapColumnVector(bytes.length, DataTypes.ByteType);
-      columnVector.putBytes(0, bytes.length, bytes, 0);
-      return new ColumnarArray(columnVector, 0, bytes.length);
+      return GeometrySerializer.serialize(geometry);
     }
   }
 }

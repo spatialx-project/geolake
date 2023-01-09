@@ -18,8 +18,6 @@
  */
 package org.apache.spark.sql.iceberg.udt
 
-import org.apache.spark.sql.catalyst.util.ArrayData
-import org.apache.spark.sql.catalyst.util.GenericArrayData
 import org.locationtech.jts.geom.Geometry
 import org.locationtech.jts.io.WKBReader
 import org.locationtech.jts.io.WKBWriter
@@ -35,9 +33,9 @@ object GeometrySerializer {
    * @param geometry JTS geometry
    * @return Array of bites represents this geometry
    */
-  def serialize(geometry: Geometry): GenericArrayData = {
+  def serialize(geometry: Geometry): Array[Byte] = {
     val writer = new WKBWriter(getDimension(geometry), 2, true)
-    new GenericArrayData(writer.write(geometry))
+    writer.write(geometry)
   }
 
   /**
@@ -48,13 +46,13 @@ object GeometrySerializer {
    */
   def deserialize(datum: Any): Geometry = {
     datum match {
-      case values: ArrayData => deserialize(values)
+      case values: Array[Byte] => deserialize(values)
     }
   }
 
-  def deserialize(values: ArrayData): Geometry = {
+  def deserialize(values: Array[Byte]): Geometry = {
     val reader = new WKBReader()
-    reader.read(values.toByteArray())
+    reader.read(values)
   }
 
   private def getDimension(geometry: Geometry): Int = {
