@@ -820,13 +820,13 @@ public class SparkParquetReaders {
     }
   }
 
-  private static class GeometryWKBReader extends PrimitiveReader<ArrayData> {
+  private static class GeometryWKBReader extends PrimitiveReader<byte[]> {
     GeometryWKBReader(ColumnDescriptor desc) {
       super(desc);
     }
 
     @Override
-    public ArrayData read(ArrayData reuse) {
+    public byte[] read(byte[] reuse) {
       Binary binary = column.nextBinary();
       ByteBuffer buffer = binary.toByteBuffer();
       Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
@@ -835,13 +835,13 @@ public class SparkParquetReaders {
   }
 
   private static class GeometryWKBBBoxReader
-      extends GeoParquetValueReaders.GeometryGenericWKBBBoxReader<ArrayData> {
+      extends GeoParquetValueReaders.GeometryGenericWKBBBoxReader<byte[]> {
     GeometryWKBBBoxReader(MessageType type, String[] prefix) {
       super(type, prefix);
     }
 
     @Override
-    public ArrayData read(ArrayData reuse) {
+    public byte[] read(byte[] reuse) {
       Binary binary = this.readWKB();
       ByteBuffer buffer = binary.toByteBuffer();
       Geometry geom = TypeUtil.GeometryUtils.byteBuffer2geometry(buffer);
@@ -850,13 +850,13 @@ public class SparkParquetReaders {
   }
 
   private static class GeometryNestedListReader
-      extends GeoParquetValueReaders.GeometryGenericNestedListReader<ArrayData> {
+      extends GeoParquetValueReaders.GeometryGenericNestedListReader<byte[]> {
     GeometryNestedListReader(MessageType type, String[] prefix) {
       super(type, prefix);
     }
 
     @Override
-    public ArrayData read(ArrayData reuse) {
+    public byte[] read(byte[] reuse) {
       Geometry geom = this.readGeometry();
       return GeometrySerializer.serialize(geom);
     }

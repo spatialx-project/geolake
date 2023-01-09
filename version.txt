@@ -1,1 +1,1 @@
-0.15.0-gd-SNAPSHOT
+1.1.0-gd-SNAPSHOT

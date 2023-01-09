@@ -37,6 +37,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.data.FileHelpers;
 import org.apache.iceberg.data.GenericRecord;
 import org.apache.iceberg.data.Record;
+import org.apache.iceberg.expressions.Pair;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
@@ -49,6 +50,9 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
 
@@ -75,7 +79,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
           optional(6, "decimalCol", Types.DecimalType.of(10, 2)),
           optional(7, "stringCol", Types.StringType.get()),
           optional(8, "fixedCol", Types.FixedType.ofLength(3)),
-          optional(9, "binaryCol", Types.BinaryType.get()));
+          optional(9, "binaryCol", Types.BinaryType.get()),
+          optional(10, "geometryCol", Types.GeometryType.get()));
 
   public TestMetadataTableReadableMetrics() {
     // only SparkCatalog supports metadata table sql queries
@@ -97,6 +102,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             PRIMITIVE_SCHEMA,
             PartitionSpec.unpartitioned(),
             ImmutableMap.of());
+    GeometryFactory factory = new GeometryFactory();
     List<Record> records =
         Lists.newArrayList(
             createPrimitiveRecord(
@@ -108,7 +114,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
                 new BigDecimal("1.00"),
                 "1",
                 Base64.getDecoder().decode("1111"),
-                ByteBuffer.wrap(Base64.getDecoder().decode("1111"))),
+                ByteBuffer.wrap(Base64.getDecoder().decode("1111")),
+                factory.createPoint(new Coordinate(-10, -10))),
             createPrimitiveRecord(
                 true,
                 2,
@@ -118,10 +125,11 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
                 new BigDecimal("2.00"),
                 "2",
                 Base64.getDecoder().decode("2222"),
-                ByteBuffer.wrap(Base64.getDecoder().decode("2222"))),
-            createPrimitiveRecord(false, 1, 1, Float.NaN, Double.NaN, null, "1", null, null),
+                ByteBuffer.wrap(Base64.getDecoder().decode("2222")),
+                factory.createPoint(new Coordinate(10, 10))),
+            createPrimitiveRecord(false, 1, 1, Float.NaN, Double.NaN, null, "1", null, null, null),
             createPrimitiveRecord(
-                false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null));
+                false, 2, 2L, Float.NaN, 2.0D, new BigDecimal("2.00"), "2", null, null, null));
 
     DataFile dataFile =
         FileHelpers.writeDataFile(table, Files.localOutput(temp.newFile()), records);
@@ -165,7 +173,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
       BigDecimal decimalCol,
       String stringCol,
       byte[] fixedCol,
-      ByteBuffer binaryCol) {
+      ByteBuffer binaryCol,
+      Geometry geometryCol) {
     GenericRecord record = GenericRecord.create(PRIMITIVE_SCHEMA);
     record.set(0, booleanCol);
     record.set(1, intCol);
@@ -176,6 +185,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
     record.set(6, stringCol);
     record.set(7, fixedCol);
     record.set(8, binaryCol);
+    record.set(9, geometryCol);
     return record;
   }
 
@@ -268,7 +278,8 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             null,
             "1",
             "2");
-
+    Object[] geometryCol =
+        row(65L, 4L, 2L, 0L, Pair.of(-10.0, -10.0).toString(), Pair.of(10.0, 10.0).toString());
     Object[] metrics =
         row(
             binaryCol,
@@ -277,6 +288,7 @@ public class TestMetadataTableReadableMetrics extends SparkTestBaseWithCatalog {
             doubleCol,
             fixedCol,
             floatCol,
+            geometryCol,
             intCol,
             longCol,
             stringCol);

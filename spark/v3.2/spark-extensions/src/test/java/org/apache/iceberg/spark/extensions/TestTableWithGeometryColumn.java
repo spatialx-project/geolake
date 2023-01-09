@@ -39,6 +39,7 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
   public TestTableWithGeometryColumn(
       String catalogName, String implementation, Map<String, String> config) {
     super(catalogName, implementation, config);
+    prepareData();
   }
 
   @After
@@ -53,8 +54,6 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
 
   @Test
   public void testGeometryTable() throws NoSuchTableException {
-    prepareData();
-
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
     String[] geometryPartition = {" PARTITIONED BY (xz2(2, geo)) ", ""};
     String[] vectorizationSetting = {"true", "false"};
@@ -65,6 +64,44 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
         }
       }
     }
+  }
+
+  @Test
+  public void testMergeInto() throws NoSuchTableException {
+    String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
+    String[] vectorizationSetting = {"true", "false"};
+    for (String geometryEncoding : geometryEncodings) {
+      for (String vectorizationEnabled : vectorizationSetting) {
+        testMergeInto(geometryEncoding, vectorizationEnabled);
+      }
+    }
+  }
+
+  public void testMergeInto(String geometryEncoding, String vectorizationEnabled)
+      throws NoSuchTableException {
+    sql("DROP TABLE IF EXISTS %s", tableName);
+    sql(
+        "CREATE TABLE %s (id bigint, data string, geo geometry) USING iceberg "
+            + "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', "
+            + "'write.parquet.geometry.encoding' = '%s')",
+        tableName, vectorizationEnabled, geometryEncoding);
+    Dataset<Row> tableDf = spark.table(tableName);
+    StructType schema = tableDf.schema();
+    Dataset<Row> geomDf = spark.createDataFrame(Arrays.asList(rows), schema);
+    geomDf.writeTo(tableName).overwritePartitions();
+
+    sql("DROP TABLE IF EXISTS %s_dup", tableName);
+    sql(
+        "CREATE TABLE %s_dup (id bigint, geo geometry) USING iceberg PARTITIONED BY (xz2(geo, 3)) "
+            + "TBLPROPERTIES ('read.parquet.vectorization.enabled' = '%s', "
+            + "'write.parquet.geometry.encoding' = '%s')",
+        tableName, vectorizationEnabled, geometryEncoding);
+
+    sql(
+        "MERGE INTO %s_dup t USING (SELECT id, geo FROM %s) s ON t.id = s.id WHEN NOT MATCHED THEN INSERT *",
+        tableName, tableName);
+    Assert.assertEquals(
+        "Should have inserted 100 rows", 100L, scalarSql("SELECT COUNT(*) FROM %s_dup", tableName));
   }
 
   private void prepareData() {
@@ -130,5 +167,9 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
         hint + " Total row number should not change after update",
         100L,
         scalarSql("SELECT COUNT(*) FROM %s", tableName));
+
+    // Show table metadata
+    List<Object[]> files = sql("SELECT * FROM %s.files", tableName);
+    Assert.assertTrue(files.size() > 0);
   }
 }
