@@ -69,7 +69,7 @@ public class TestTableWithGeometryColumn extends SparkExtensionsTestBase {
   }
 
   @Test
-  public void testMergeInfo() throws NoSuchTableException {
+  public void testMergeInto() throws NoSuchTableException {
     String[] geometryEncodings = {"wkb", "wkb-bbox", "nested-list"};
     String[] vectorizationSetting = {"true", "false"};
     for (String geometryEncoding : geometryEncodings) {
