@@ -86,7 +86,7 @@ class InternalRowWrapper implements StructLike {
       InternalRowWrapper nestedWrapper = new InternalRowWrapper(structType);
       return (row, pos) -> nestedWrapper.wrap(row.getStruct(pos, structType.size()));
     } else if (type instanceof GeometryUDT) {
-      return (row, pos) -> GeometrySerializer.deserialize(row.getArray(pos));
+      return (row, pos) -> GeometrySerializer.deserialize(row.getBinary(pos));
     }
 
     return null;
