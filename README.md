@@ -34,6 +34,6 @@ WHERE ST_Contains(geom, ST_Point(0.5, 0.5));
 
 ## Quickstart
 
-Check this repo [docker-spark-geolake](git@github.com:spatialx-project/docker-spark-geolake.git) for early access, there are some [notebooks](https://github.com/spatialx-project/docker-spark-geolake/tree/main/spark/notebooks) inside.
+Check this repo [docker-spark-geolake](https://github.com/spatialx-project/docker-spark-geolake) for early access, there are some [notebooks](https://github.com/spatialx-project/docker-spark-geolake/tree/main/spark/notebooks) inside.
 
 Source code and documentation will be released soon.
