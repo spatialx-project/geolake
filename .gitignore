@@ -66,3 +66,7 @@ derby.log
 python/.mypy_cache/
 python/htmlcov
 python/coverage.xml
+
+# vscode
+.metals/
+.vscode/

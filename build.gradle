@@ -199,6 +199,7 @@ subprojects {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.mockito:mockito-inline'
     testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.locationtech.jts.io:jts-io-common'
   }
 
   test {
@@ -277,6 +278,7 @@ project(':iceberg-bundled-guava') {
 project(':iceberg-api') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation 'org.locationtech.jts.io:jts-io-common'
     compileOnly "com.google.errorprone:error_prone_annotations"
     compileOnly "com.google.code.findbugs:jsr305"
     annotationProcessor "org.immutables:value"
@@ -323,6 +325,7 @@ project(':iceberg-core') {
     annotationProcessor "org.immutables:value"
     compileOnly "org.immutables:value"
 
+    implementation 'org.locationtech.jts.io:jts-io-common'
     implementation("org.apache.avro:avro") {
       exclude group: 'org.tukaani' // xz compression is not supported
     }
@@ -379,7 +382,7 @@ project(':iceberg-data') {
     }
 
     compileOnly "org.apache.avro:avro"
-
+    testImplementation 'org.locationtech.jts.io:jts-io-common'
     testImplementation("org.apache.hadoop:hadoop-client") {
       exclude group: 'org.apache.avro', module: 'avro'
       exclude group: 'org.slf4j', module: 'slf4j-log4j12'
@@ -662,6 +665,7 @@ project(':iceberg-hive-metastore') {
 project(':iceberg-orc') {
   dependencies {
     implementation project(path: ':iceberg-bundled-guava', configuration: 'shadow')
+    implementation 'org.locationtech.jts.io:jts-io-common'
     api project(':iceberg-api')
     implementation project(':iceberg-common')
     implementation project(':iceberg-core')
@@ -706,6 +710,7 @@ project(':iceberg-parquet') {
       exclude group: 'it.unimi.dsi'
       exclude group: 'org.codehaus.jackson'
     }
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     compileOnly "org.apache.avro:avro"
     compileOnly("org.apache.hadoop:hadoop-client") {
@@ -733,7 +738,8 @@ project(':iceberg-arrow') {
       exclude group: 'io.netty', module: 'netty-common'
       exclude group: 'io.netty', module: 'netty-buffer'
     }
-
+    implementation 'org.locationtech.jts.io:jts-io-common'
+    
     runtimeOnly("io.netty:netty-buffer")
 
     implementation("org.apache.parquet:parquet-avro") {
