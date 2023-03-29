@@ -82,44 +82,16 @@ subprojects {
           }
 
           groupId = 'org.apache.iceberg'
-          pom {
-            name = 'Apache Iceberg'
-            description = 'A table format for huge analytic datasets'
-            url = 'https://iceberg.apache.org'
-            licenses {
-              license {
-                name = 'The Apache Software License, Version 2.0'
-                url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-              }
-            }
-            mailingLists {
-              mailingList {
-                name = 'Dev Mailing List'
-                post = 'dev@iceberg.apache.org'
-                subscribe = 'dev-subscribe@iceberg.apache.org'
-                unsubscribe = 'dev-unsubscribe@iceberg.apache.org'
-              }
-            }
-            issueManagement {
-              system = 'GitHub'
-              url = 'https://github.com/apache/iceberg/issues'
-            }
-          }
         }
       }
 
       repositories {
         maven {
+          url = "https://maven.pkg.github.com/spatialx-project/geolake-iceberg"
           credentials {
-            username project.hasProperty('mavenUser') ? "$mavenUser" : ""
-            password project.hasProperty('mavenPassword') ? "$mavenPassword" : ""
+            username = System.getenv("USERNAME")
+            password = System.getenv("TOKEN")
           }
-          // upload to the releases repository using ./gradlew -Prelease publish
-          def apacheSnapshotsRepoUrl = 'https://repository.apache.org/content/repositories/snapshots'
-          def apacheReleasesRepoUrl = 'https://repository.apache.org/service/local/staging/deploy/maven2'
-          def snapshotsRepoUrl = project.hasProperty('mavenSnapshotsRepo') ? "$mavenSnapshotsRepo" : "$apacheSnapshotsRepoUrl"
-          def releasesRepoUrl = project.hasProperty('mavenReleasesRepo') ? "$mavenReleasesRepo" : "$apacheReleasesRepoUrl"
-          url = project.hasProperty('release') ? releasesRepoUrl : snapshotsRepoUrl
         }
       }
     }
