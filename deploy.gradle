@@ -87,7 +87,7 @@ subprojects {
 
       repositories {
         maven {
-          url = "https://maven.pkg.github.com/spatialx-project/geolake-iceberg"
+          url = "https://maven.pkg.github.com/spatialx-project/geolake"
           credentials {
             username = System.getenv("USERNAME")
             password = System.getenv("TOKEN")
