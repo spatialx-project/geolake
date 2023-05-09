@@ -358,4 +358,20 @@ public class Expressions {
   public static <T> UnboundAggregate<T> min(String name) {
     return new UnboundAggregate<>(Operation.MIN, ref(name));
   }
+
+  public static <T> UnboundAggregate<T> stMinX(String name) {
+    return new UnboundAggregate<>(Operation.ST_MINX, ref(name));
+  }
+
+  public static <T> UnboundAggregate<T> stMinY(String name) {
+    return new UnboundAggregate<>(Operation.ST_MINY, ref(name));
+  }
+
+  public static <T> UnboundAggregate<T> stMaxX(String name) {
+    return new UnboundAggregate<>(Operation.ST_MAXX, ref(name));
+  }
+
+  public static <T> UnboundAggregate<T> stMaxY(String name) {
+    return new UnboundAggregate<>(Operation.ST_MAXY, ref(name));
+  }
 }

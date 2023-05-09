@@ -40,46 +40,17 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    boolean hasBound = file.upperBounds().containsKey(fieldId);
-    Long valueCount = safeGet(file.valueCounts(), fieldId);
-    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
-    boolean boundAllNull =
-        valueCount != null
-            && valueCount > 0
-            && nullCount != null
-            && nullCount.longValue() == valueCount.longValue();
-    return hasBound || boundAllNull;
+    return hasValue(file, fieldId);
   }
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    return Conversions.fromByteBuffer(type, safeGet(file.upperBounds(), fieldId));
+    PrimitiveType resType = type.equals(Types.GeometryType.get()) ? Types.GeometryBoundType.get() : type;
+    return Conversions.fromByteBuffer(resType, safeGet(file.upperBounds(), fieldId));
   }
 
   @Override
   public Aggregator<T> newAggregator() {
     return new MaxAggregator<>(this, comparator);
-  }
-
-  private static class MaxAggregator<T> extends NullSafeAggregator<T, T> {
-    private final Comparator<T> comparator;
-    private T max = null;
-
-    MaxAggregator(MaxAggregate<T> aggregate, Comparator<T> comparator) {
-      super(aggregate);
-      this.comparator = comparator;
-    }
-
-    @Override
-    protected void update(T value) {
-      if (max == null || comparator.compare(value, max) > 0) {
-        this.max = value;
-      }
-    }
-
-    @Override
-    protected T current() {
-      return max;
-    }
   }
 }

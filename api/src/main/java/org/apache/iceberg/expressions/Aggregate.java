@@ -51,6 +51,14 @@ public abstract class Aggregate<C extends Term> implements Expression {
         return "max(" + term() + ")";
       case MIN:
         return "min(" + term() + ")";
+      case ST_MINX:
+        return "st_minx(" + term() + ")";
+      case ST_MINY:
+        return "st_miny(" + term() + ")";
+      case ST_MAXX:
+        return "st_maxx(" + term() + ")";
+      case ST_MAXY:
+        return "st_maxy(" + term() + ")";
       default:
         throw new UnsupportedOperationException("Invalid aggregate: " + op());
     }

@@ -68,4 +68,16 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
       throw new UnsupportedOperationException("Cannot update a read-only struct");
     }
   }
+
+  boolean hasValue(DataFile file, int fieldId) {
+    boolean hasBound = file.lowerBounds().containsKey(fieldId);
+    Long valueCount = safeGet(file.valueCounts(), fieldId);
+    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
+    boolean boundAllNull =
+      valueCount != null
+        && valueCount > 0
+        && nullCount != null
+        && nullCount.longValue() == valueCount.longValue();
+    return hasBound || boundAllNull;
+  }
 }

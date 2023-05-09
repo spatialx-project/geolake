@@ -50,7 +50,11 @@ public interface Expression extends Serializable {
     MIN,
     ST_COVEREDBY,
     ST_INTERSECTS,
-    ST_COVERS;
+    ST_COVERS,
+    ST_MINX,
+    ST_MAXX,
+    ST_MINY,
+    ST_MAXY;
 
     public static Operation fromString(String operationType) {
       Preconditions.checkArgument(null != operationType, "Invalid operation type: null");

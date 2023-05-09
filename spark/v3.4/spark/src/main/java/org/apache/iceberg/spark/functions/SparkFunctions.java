@@ -30,15 +30,20 @@ public class SparkFunctions {
   private SparkFunctions() {}
 
   private static final Map<String, UnboundFunction> FUNCTIONS =
-      ImmutableMap.of(
-          "iceberg_version", new IcebergVersionFunction(),
-          "years", new YearsFunction(),
-          "months", new MonthsFunction(),
-          "days", new DaysFunction(),
-          "hours", new HoursFunction(),
-          "bucket", new BucketFunction(),
-          "truncate", new TruncateFunction(),
-          "xz2", new Xz2Function());
+      ImmutableMap.<String, UnboundFunction>builder()
+          .put("iceberg_version", new IcebergVersionFunction())
+          .put("years", new YearsFunction())
+          .put("months", new MonthsFunction())
+          .put("days", new DaysFunction())
+          .put("hours", new HoursFunction())
+          .put("bucket", new BucketFunction())
+          .put("truncate", new TruncateFunction())
+          .put("xz2", new Xz2Function())
+          .put(GeomMinMax.MinX, GeomMinMax.GeomMinXFunction)
+          .put(GeomMinMax.MinY, GeomMinMax.GeomMinYFunction)
+          .put(GeomMinMax.MaxX, GeomMinMax.GeomMaxXFunction)
+          .put(GeomMinMax.MaxY, GeomMinMax.GeomMaxYFunction)
+          .buildOrThrow();
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 

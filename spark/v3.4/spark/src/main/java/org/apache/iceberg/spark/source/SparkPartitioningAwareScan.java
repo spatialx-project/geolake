@@ -55,7 +55,7 @@ import org.apache.spark.sql.connector.read.partitioning.UnknownPartitioning;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
+public abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends SparkScan
     implements SupportsReportPartitioning {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkPartitioningAwareScan.class);

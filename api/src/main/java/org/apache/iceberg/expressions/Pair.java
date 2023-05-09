@@ -47,6 +47,23 @@ public class Pair<T0, T1> {
     return second;
   }
 
+  public Pair<T0, T1> lower(Pair<T0, T1> other) {
+    // compare first and second values separately, and return the lowest of each
+    int firstCompare = ((Comparable) first).compareTo(other.first);
+    int secondCompare = ((Comparable) second).compareTo(other.second);
+    T0 firstLower = firstCompare < 0 ? first : other.first;
+    T1 secondLower = secondCompare < 0 ? second : other.second;
+    return new Pair<>(firstLower, secondLower);
+  }
+
+  public Pair<T0, T1> upper(Pair<T0, T1> other) {
+    int firstCompare = ((Comparable) first).compareTo(other.first);
+    int secondCompare = ((Comparable) second).compareTo(other.second);
+    T0 firstUpper = firstCompare > 0 ? first : other.first;
+    T1 secondUpper = secondCompare > 0 ? second : other.second;
+    return new Pair<>(firstUpper, secondUpper);
+  }
+
   @Override
   public int hashCode() {
     return Objects.hashCode(first, second);

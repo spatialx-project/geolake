@@ -18,6 +18,8 @@
  */
 package org.apache.iceberg.expressions;
 
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.*;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_Y_MAX;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -30,6 +32,7 @@ import org.apache.iceberg.TestHelpers.Row;
 import org.apache.iceberg.TestHelpers.TestDataFile;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableList;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
+import org.apache.iceberg.types.Types;
 import org.apache.iceberg.types.Types.IntegerType;
 import org.apache.iceberg.types.Types.StringType;
 import org.junit.Assert;
@@ -41,17 +44,17 @@ public class TestAggregateEvaluator {
           required(1, "id", IntegerType.get()),
           optional(2, "no_stats", IntegerType.get()),
           optional(3, "all_nulls", StringType.get()),
-          optional(4, "some_nulls", StringType.get()));
-
+          optional(4, "some_nulls", StringType.get()),
+          optional(5, "geom", Types.GeometryType.get()));
   private static final DataFile FILE =
       new TestDataFile(
           "file.avro",
           Row.of(),
           50,
           // any value counts, including nulls
-          ImmutableMap.of(1, 50L, 3, 50L, 4, 50L),
+          ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 50L),
           // null value counts
-          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L),
+          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,0L),
           // nan value counts
           null,
           // lower bounds
@@ -91,9 +94,71 @@ public class TestAggregateEvaluator {
           // upper bounds
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
+  private static final DataFile GEOM_FILE =
+    new TestDataFile(
+      "file.avro",
+      Row.of(),
+      50,
+      // any value counts, including nulls
+      ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 50L),
+      // null value counts
+      ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,0L),
+      // nan value counts
+      null,
+      // lower bounds
+      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN + 1, GEOM_Y_MIN))),
+      // upper bounds
+      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX, GEOM_Y_MAX - 1))));
+
+  private static final DataFile MISSING_SOME_NULLS_GEOM_FILE =
+    new TestDataFile(
+      "file.avro",
+      Row.of(),
+      50,
+      // any value counts, including nulls
+      ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 40L),
+      // null value counts
+      ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,10L),
+      // nan value counts
+      null,
+      // lower bounds
+      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN, GEOM_Y_MIN + 1))),
+      // upper bounds
+      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX - 1, GEOM_Y_MAX))));
+
   private static final DataFile[] dataFiles = {
     FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
   };
+
+  private static final DataFile[] geoDataFiles = {
+    GEOM_FILE, MISSING_SOME_NULLS_GEOM_FILE
+  };
+
+  @Test
+  public void testGeomAggregate() {
+    List<Expression> list =
+      ImmutableList.of(
+        Expressions.countStar(),
+        Expressions.count("geom"),
+        Expressions.max("geom"),
+        Expressions.min("geom"),
+        Expressions.stMinX("geom"),
+        Expressions.stMinY("geom"),
+        Expressions.stMaxX("geom"),
+        Expressions.stMaxY("geom")
+        );
+    AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
+    for (DataFile dataFile : geoDataFiles) {
+      aggregateEvaluator.update(dataFile);
+    }
+    Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
+    StructLike result = aggregateEvaluator.result();
+    for (int i=0; i<result.size(); i++) {
+      System.out.println(result.get(i, Object.class));
+    }
+    Object[] expected = {100L, 80L, Pair.of(GEOM_X_MAX, GEOM_Y_MAX), Pair.of(GEOM_X_MIN, GEOM_Y_MIN), GEOM_X_MIN, GEOM_Y_MIN, GEOM_X_MAX, GEOM_Y_MAX};
+    assertEvaluatorResult(result, expected);
+  }
 
   @Test
   public void testIntAggregate() {

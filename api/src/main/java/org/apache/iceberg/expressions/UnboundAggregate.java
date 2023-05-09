@@ -55,6 +55,11 @@ public class UnboundAggregate<T> extends Aggregate<UnboundTerm<T>>
         return new MaxAggregate<>(boundTerm(struct, caseSensitive));
       case MIN:
         return new MinAggregate<>(boundTerm(struct, caseSensitive));
+      case ST_MINX:
+      case ST_MINY:
+      case ST_MAXX:
+      case ST_MAXY:
+        return new GeoMinMaxAggregate<>(boundTerm(struct, caseSensitive), op());
       default:
         throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
     }

@@ -40,46 +40,17 @@ public class MinAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected boolean hasValue(DataFile file) {
-    boolean hasBound = file.lowerBounds().containsKey(fieldId);
-    Long valueCount = safeGet(file.valueCounts(), fieldId);
-    Long nullCount = safeGet(file.nullValueCounts(), fieldId);
-    boolean boundAllNull =
-        valueCount != null
-            && valueCount > 0
-            && nullCount != null
-            && nullCount.longValue() == valueCount.longValue();
-    return hasBound || boundAllNull;
+    return hasValue(file, fieldId);
   }
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    return Conversions.fromByteBuffer(type, safeGet(file.lowerBounds(), fieldId));
+    PrimitiveType resType = type.equals(Types.GeometryType.get()) ? Types.GeometryBoundType.get() : type;
+    return Conversions.fromByteBuffer(resType, safeGet(file.lowerBounds(), fieldId));
   }
 
   @Override
   public Aggregator<T> newAggregator() {
     return new MinAggregator<>(this, comparator);
-  }
-
-  private static class MinAggregator<T> extends NullSafeAggregator<T, T> {
-    private final Comparator<T> comparator;
-    private T min = null;
-
-    MinAggregator(MinAggregate<T> aggregate, Comparator<T> comparator) {
-      super(aggregate);
-      this.comparator = comparator;
-    }
-
-    @Override
-    protected void update(T value) {
-      if (min == null || comparator.compare(value, min) < 0) {
-        this.min = value;
-      }
-    }
-
-    @Override
-    protected T current() {
-      return min;
-    }
   }
 }

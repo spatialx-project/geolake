@@ -32,6 +32,7 @@ import org.apache.spark.sql.catalyst.analysis.RewriteUpdateTable
 import org.apache.spark.sql.catalyst.expressions.GeometryExpressions
 import org.apache.spark.sql.catalyst.optimizer.ExtendedReplaceNullWithFalseInPredicate
 import org.apache.spark.sql.catalyst.optimizer.ExtendedSimplifyConditionalsInPredicate
+import org.apache.spark.sql.catalyst.optimizer.GeometryAggregatePushDown
 import org.apache.spark.sql.catalyst.optimizer.GeometryPredicatePushDown
 import org.apache.spark.sql.catalyst.parser.extensions.IcebergSparkSqlExtensionsParser
 import org.apache.spark.sql.execution.datasources.v2.ExtendedDataSourceV2Strategy
@@ -78,7 +79,7 @@ class IcebergSparkSessionExtensions extends (SparkSessionExtensions => Unit) {
 
     // geometry related extensions
     extensions.injectCheckRule(spark => {
-      spark.experimental.extraOptimizations ++= Seq(GeometryPredicatePushDown)
+      spark.experimental.extraOptimizations ++= Seq(GeometryPredicatePushDown, GeometryAggregatePushDown)
       _ => ()
     })
 

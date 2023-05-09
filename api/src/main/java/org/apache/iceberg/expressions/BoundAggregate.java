@@ -57,11 +57,25 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
   }
 
   public Type type() {
-    if (op() == Operation.COUNT || op() == Operation.COUNT_STAR) {
-      return Types.LongType.get();
-    } else {
-      return term().type();
+    switch (op()) {
+      case COUNT:
+      case COUNT_STAR:
+        return Types.LongType.get();
+      case ST_MINX:
+      case ST_MINY:
+      case ST_MAXX:
+      case ST_MAXY:
+        return Types.DoubleType.get();
+      default:
+        return resultType(term().type());
     }
+  }
+
+  private Type resultType(Type columnType) {
+    if (columnType == Types.GeometryType.get()) {
+      return Types.GeometryBoundType.get();
+    }
+    return columnType;
   }
 
   public String columnName() {
@@ -82,6 +96,14 @@ public class BoundAggregate<T, C> extends Aggregate<BoundTerm<T>> implements Bou
         return "max(" + ExpressionUtil.describe(term()) + ")";
       case MIN:
         return "min(" + ExpressionUtil.describe(term()) + ")";
+      case ST_MINX:
+        return "st_minx(" + ExpressionUtil.describe(term()) + ")";
+      case ST_MAXX:
+        return "st_maxx(" + ExpressionUtil.describe(term()) + ")";
+      case ST_MINY:
+        return "st_miny(" + ExpressionUtil.describe(term()) + ")";
+      case ST_MAXY:
+        return "st_maxy(" + ExpressionUtil.describe(term()) + ")";
       default:
         throw new UnsupportedOperationException("Unsupported aggregate type: " + op());
     }
