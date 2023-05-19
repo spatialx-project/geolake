@@ -49,6 +49,7 @@ class SparkStagedScan extends SparkScan {
     this.openFileCost = readConf.splitOpenFileCost();
   }
 
+  @Override
   public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
     return this;
   }
@@ -59,10 +60,10 @@ class SparkStagedScan extends SparkScan {
       ScanTaskSetManager taskSetManager = ScanTaskSetManager.get();
       List<ScanTask> tasks = taskSetManager.fetchTasks(table(), taskSetId);
       ValidationException.check(
-        tasks != null,
-        "Task set manager has no tasks for table %s with task set ID %s",
-        table(),
-        taskSetId);
+          tasks != null,
+          "Task set manager has no tasks for table %s with task set ID %s",
+          table(),
+          taskSetId);
 
       this.taskGroups = TableScanUtil.planTaskGroups(tasks, splitSize, splitLookback, openFileCost);
     }

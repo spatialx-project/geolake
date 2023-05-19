@@ -34,6 +34,7 @@ import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Expressions;
 import org.apache.spark.sql.connector.expressions.NamedReference;
@@ -59,6 +60,38 @@ class SparkCopyOnWriteScan extends SparkPartitioningAwareScan<FileScanTask>
       Schema expectedSchema,
       List<Expression> filters) {
     this(spark, table, null, null, readConf, expectedSchema, filters);
+  }
+
+  SparkCopyOnWriteScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      BatchScan scan,
+      Snapshot snapshot,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(sparkContext, table, scan, readConf, expectedSchema, filters);
+
+    this.snapshot = snapshot;
+
+    if (scan == null) {
+      this.filteredLocations = Collections.emptySet();
+    }
+  }
+
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    BatchScan newScan = (BatchScan) this.scan();
+    for (Expression expr : newFilterExpressions) {
+      newScan = newScan.filter(expr);
+    }
+    return new SparkCopyOnWriteScan(
+        this.sparkContext(),
+        this.table(),
+        newScan,
+        this.snapshot,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions);
   }
 
   SparkCopyOnWriteScan(

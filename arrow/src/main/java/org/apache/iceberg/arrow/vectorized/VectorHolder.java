@@ -184,7 +184,7 @@ public class VectorHolder {
         ColumnDescriptor columnDescriptor,
         FieldVector vector,
         NullabilityHolder holder,
-        Type type) {
+        Types.NestedField type) {
       super(columnDescriptor, vector, false, null, holder, type);
       this.geometryVectorEncoding = geometryVectorEncoding;
     }

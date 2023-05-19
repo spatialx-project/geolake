@@ -82,6 +82,16 @@ class SortOrderToSpark implements SortOrderVisitor<SortOrder> {
         Expressions.hours(quotedName(id)), toSpark(direction), toSpark(nullOrder));
   }
 
+  @Override
+  public SortOrder xz2(
+      String sourceName, int id, int resolution, SortDirection direction, NullOrder nullOrder) {
+    return Expressions.sort(
+        Expressions.apply(
+            "xz2", Expressions.column(quotedName(id)), Expressions.literal(resolution)),
+        toSpark(direction),
+        toSpark(nullOrder));
+  }
+
   private String quotedName(int id) {
     return quotedNameById.get(id);
   }

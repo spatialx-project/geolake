@@ -37,7 +37,8 @@ public class SparkFunctions {
           "days", new DaysFunction(),
           "hours", new HoursFunction(),
           "bucket", new BucketFunction(),
-          "truncate", new TruncateFunction());
+          "truncate", new TruncateFunction(),
+          "xz2", new Xz2Function());
 
   private static final List<String> FUNCTION_NAMES = ImmutableList.copyOf(FUNCTIONS.keySet());
 

@@ -45,6 +45,7 @@ import org.apache.iceberg.types.Types.StructType;
 import org.apache.iceberg.util.SnapshotUtil;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.TableScanUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.Transform;
 import org.apache.spark.sql.connector.read.SupportsReportPartitioning;
@@ -76,6 +77,25 @@ abstract class SparkPartitioningAwareScan<T extends PartitionScanTask> extends S
       Schema expectedSchema,
       List<Expression> filters) {
 
+    super(spark, table, readConf, expectedSchema, filters);
+
+    this.scan = scan;
+    this.preserveDataGrouping = readConf.preserveDataGrouping();
+
+    if (scan == null) {
+      this.specs = Collections.emptySet();
+      this.tasks = Collections.emptyList();
+      this.taskGroups = Collections.emptyList();
+    }
+  }
+
+  SparkPartitioningAwareScan(
+      JavaSparkContext spark,
+      Table table,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
     super(spark, table, readConf, expectedSchema, filters);
 
     this.scan = scan;

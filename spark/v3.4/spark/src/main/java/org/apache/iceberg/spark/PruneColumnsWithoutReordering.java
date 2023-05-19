@@ -30,6 +30,7 @@ import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Type.TypeID;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT;
 import org.apache.spark.sql.types.ArrayType;
 import org.apache.spark.sql.types.BinaryType$;
 import org.apache.spark.sql.types.BooleanType$;
@@ -46,6 +47,8 @@ import org.apache.spark.sql.types.StructField;
 import org.apache.spark.sql.types.StructType;
 import org.apache.spark.sql.types.TimestampNTZType$;
 import org.apache.spark.sql.types.TimestampType$;
+import org.apache.spark.sql.types.TimestampType;
+import org.apache.spark.sql.types.UserDefinedType$;
 
 public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVisitor<Type> {
   private final StructType requestedType;
@@ -218,6 +221,12 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
             requestedDecimal.precision(),
             decimal.precision());
         break;
+      case GEOMETRY:
+        Preconditions.checkArgument(
+            current instanceof GeometryUDT,
+            "Cannot project geometry to unknown user defined type: %s",
+            current);
+        break;
       default:
     }
 
@@ -238,5 +247,6 @@ public class PruneColumnsWithoutReordering extends TypeUtil.CustomOrderSchemaVis
           .put(TypeID.STRING, ImmutableSet.of(StringType$.class))
           .put(TypeID.FIXED, ImmutableSet.of(BinaryType$.class))
           .put(TypeID.BINARY, ImmutableSet.of(BinaryType$.class))
+          .put(TypeID.GEOMETRY, ImmutableSet.of(UserDefinedType$.class))
           .buildOrThrow();
 }

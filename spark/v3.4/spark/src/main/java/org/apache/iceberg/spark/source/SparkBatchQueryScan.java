@@ -47,6 +47,7 @@ import org.apache.iceberg.spark.SparkFilters;
 import org.apache.iceberg.spark.SparkReadConf;
 import org.apache.iceberg.spark.SparkSchemaUtil;
 import org.apache.iceberg.util.SnapshotUtil;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SparkSession;
 import org.apache.spark.sql.connector.expressions.NamedReference;
 import org.apache.spark.sql.connector.read.Statistics;
@@ -55,7 +56,7 @@ import org.apache.spark.sql.sources.Filter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
+public class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     implements SupportsRuntimeFiltering {
 
   private static final Logger LOG = LoggerFactory.getLogger(SparkBatchQueryScan.class);
@@ -83,6 +84,37 @@ class SparkBatchQueryScan extends SparkPartitioningAwareScan<PartitionScanTask>
     this.asOfTimestamp = readConf.asOfTimestamp();
     this.tag = readConf.tag();
     this.runtimeFilterExpressions = Lists.newArrayList();
+  }
+
+  SparkBatchQueryScan(
+      JavaSparkContext sparkContext,
+      Table table,
+      Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> scan,
+      SparkReadConf readConf,
+      Schema expectedSchema,
+      List<Expression> filters) {
+    super(sparkContext, table, scan, readConf, expectedSchema, filters);
+
+    this.snapshotId = readConf.snapshotId();
+    this.startSnapshotId = readConf.startSnapshotId();
+    this.endSnapshotId = readConf.endSnapshotId();
+    this.asOfTimestamp = readConf.asOfTimestamp();
+    this.tag = readConf.tag();
+    this.runtimeFilterExpressions = Lists.newArrayList();
+  }
+
+  public SparkScan withExpressionsInternal(List<Expression> newFilterExpressions) {
+    Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>> newScan = this.scan();
+    for (Expression expr : newFilterExpressions) {
+      newScan = (Scan<?, ? extends ScanTask, ? extends ScanTaskGroup<?>>) newScan.filter(expr);
+    }
+    return new SparkBatchQueryScan(
+        this.sparkContext(),
+        this.table(),
+        newScan,
+        this.readConf(),
+        this.expectedSchema(),
+        newFilterExpressions);
   }
 
   Long snapshotId() {

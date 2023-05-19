@@ -192,7 +192,7 @@ public class VectorizedNestedListGeometryArrowReader implements VectorizedReader
     }
 
     return new GeometryVectorHolder(
-        "nested-list", typeColumnDesc, vec, nullabilityHolder, icebergField.type());
+        "nested-list", typeColumnDesc, vec, nullabilityHolder, icebergField);
   }
 
   @Override

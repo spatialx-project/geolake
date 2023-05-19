@@ -152,7 +152,7 @@ public class VectorizedWKBBBoxArrowReader implements VectorizedReader<VectorHold
     }
 
     return new GeometryVectorHolder(
-        "wkb-bbox", wkbColumnDesc, vec, nullabilityHolder, icebergField.type());
+        "wkb-bbox", wkbColumnDesc, vec, nullabilityHolder, icebergField);
   }
 
   @Override

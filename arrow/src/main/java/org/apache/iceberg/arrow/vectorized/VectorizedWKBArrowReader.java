@@ -80,8 +80,7 @@ public class VectorizedWKBArrowReader implements VectorizedReader<VectorHolder> 
         icebergField.name(),
         vec.getValueCount(),
         numRows);
-    return new GeometryVectorHolder(
-        "wkb", columnDescriptor, vec, nullabilityHolder, icebergField.type());
+    return new GeometryVectorHolder("wkb", columnDescriptor, vec, nullabilityHolder, icebergField);
   }
 
   @Override

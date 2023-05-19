@@ -28,7 +28,10 @@ import org.apache.iceberg.transforms.Transforms;
 import org.apache.iceberg.types.Types;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SparkSession;
+import org.apache.spark.sql.catalyst.expressions.GeometryExpressions;
 import org.apache.spark.sql.catalyst.util.DateTimeUtils;
+import org.apache.spark.sql.iceberg.udt.GeometryUDT$;
+import org.apache.spark.sql.iceberg.udt.UDTRegistration;
 import org.apache.spark.sql.types.CharType;
 import org.apache.spark.sql.types.DataTypes;
 import org.apache.spark.sql.types.DecimalType;
@@ -38,6 +41,7 @@ import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestIcebergSpark {
 
@@ -245,5 +249,62 @@ public class TestIcebergSpark {
     Assert.assertEquals(
         Transforms.truncate(4).bind(Types.StringType.get()).apply("hello"),
         results.get(0).getString(0));
+  }
+
+  @Test
+  public void testRegisterXZ2UDF() {
+    UDTRegistration.registerTypes();
+    GeometryExpressions.registerFunctions(spark.sessionState().functionRegistry());
+    IcebergSpark.registerXz2UDF(spark, "iceberg_xz2_1", GeometryUDT$.MODULE$, 1);
+    List<Row> results =
+        spark
+            .sql(
+                "SELECT iceberg_xz2_1(IcebergSTGeomFromText('POINT (-50 -50)')),"
+                    + "iceberg_xz2_1(IcebergSTGeomFromText('POINT (50 -50)')),"
+                    + "iceberg_xz2_1(IcebergSTGeomFromText('POINT (-50 50)')),"
+                    + "iceberg_xz2_1(IcebergSTGeomFromText('POINT (50 50)'))")
+            .collectAsList();
+    Assert.assertEquals(1, results.size());
+    Row result = results.get(0);
+    Assert.assertEquals(1L, result.getLong(0));
+    Assert.assertEquals(2L, result.getLong(1));
+    Assert.assertEquals(3L, result.getLong(2));
+    Assert.assertEquals(4L, result.getLong(3));
+  }
+
+  @Test
+  public void testGeometryFunctions() {
+    UDTRegistration.registerTypes();
+    GeometryExpressions.registerFunctions(spark.sessionState().functionRegistry());
+    List<Row> results =
+        spark
+            .sql(
+                "SELECT IcebergSTGeomFromText('POINT (10 20)'),"
+                    + "IcebergSTAsText(IcebergSTGeomFromText('POINT (10 20)')),"
+                    + "IcebergXZ2(IcebergSTGeomFromText('POINT (10 20)'), 1)")
+            .collectAsList();
+    Assert.assertEquals(1, results.size());
+    Assert.assertTrue(results.get(0).get(0) instanceof Geometry);
+    Assert.assertEquals(results.get(0).get(1), results.get(0).get(0).toString());
+    Assert.assertEquals(4L, results.get(0).getLong(2));
+    results =
+        spark
+            .sql(
+                "SELECT "
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
+                    + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (1 1)')),"
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (1 1)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))')),"
+                    + "IcebergSTCovers(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 2)')),"
+                    + "IcebergSTIntersects(IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'), IcebergSTGeomFromText('POINT (3 3)')),"
+                    + "IcebergSTCoveredBy(IcebergSTGeomFromText('POINT (3 3)'), IcebergSTGeomFromText('POLYGON ((0 0, 2 0, 2 2, 0 2, 0 0))'))")
+            .collectAsList();
+    Assert.assertEquals(1, results.size());
+    Row result = results.get(0);
+    Assert.assertTrue(result.getBoolean(0));
+    Assert.assertTrue(result.getBoolean(1));
+    Assert.assertTrue(result.getBoolean(2));
+    Assert.assertFalse(result.getBoolean(3));
+    Assert.assertFalse(result.getBoolean(4));
+    Assert.assertFalse(result.getBoolean(5));
   }
 }

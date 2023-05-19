@@ -303,6 +303,12 @@ public class Spark3Util {
     }
 
     @Override
+    public Transform xz2(int fieldId, String sourceName, int sourceId, int resolution) {
+      return Expressions.apply(
+          "xz2", Expressions.column(quotedName(sourceId)), Expressions.literal(resolution));
+    }
+
+    @Override
     public Transform bucket(String sourceName, int sourceId, int numBuckets) {
       return Expressions.bucket(numBuckets, quotedName(sourceId));
     }
@@ -378,6 +384,8 @@ public class Spark3Util {
           return org.apache.iceberg.expressions.Expressions.hour(colName);
         case "truncate":
           return org.apache.iceberg.expressions.Expressions.truncate(colName, findWidth(transform));
+        case "xz2":
+          return org.apache.iceberg.expressions.Expressions.xz2(colName, findWidth(transform));
         case "zorder":
           return new Zorder(
               Stream.of(transform.references())
@@ -439,6 +447,9 @@ public class Spark3Util {
           break;
         case "truncate":
           builder.truncate(colName, findWidth(transform));
+          break;
+        case "xz2":
+          builder.xz2(colName, findWidth(transform));
           break;
         default:
           throw new UnsupportedOperationException("Transform is not supported: " + transform);
@@ -578,6 +589,10 @@ public class Spark3Util {
         case FIXED:
         case BINARY:
           return "binary";
+        case GEOMETRY:
+          return "geometry";
+        case GEOMETRY_BOUND:
+          return "geometry_bound";
         case DECIMAL:
           Types.DecimalType decimal = (Types.DecimalType) primitive;
           return "decimal(" + decimal.precision() + "," + decimal.scale() + ")";
@@ -653,6 +668,12 @@ public class Spark3Util {
           return pred.ref().name() + " IN (" + sqlString(pred.literals()) + ")";
         case NOT_IN:
           return pred.ref().name() + " NOT IN (" + sqlString(pred.literals()) + ")";
+        case ST_COVERS:
+          return "st_covers(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
+        case ST_COVEREDBY:
+          return "st_coveredBy(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
+        case ST_INTERSECTS:
+          return "st_intersects(" + pred.ref().name() + ", " + sqlString(pred.literals()) + ")";
         default:
           throw new UnsupportedOperationException("Cannot convert predicate to SQL: " + pred);
       }
@@ -995,6 +1016,16 @@ public class Spark3Util {
         org.apache.iceberg.SortDirection direction,
         NullOrder nullOrder) {
       return String.format("hours(%s) %s %s", sourceName, direction, nullOrder);
+    }
+
+    @Override
+    public String xz2(
+        String sourceName,
+        int sourceId,
+        int resolution,
+        org.apache.iceberg.SortDirection direction,
+        NullOrder nullOrder) {
+      return String.format("xz2(%s, %s) %s %s", sourceName, resolution, direction, nullOrder);
     }
 
     @Override

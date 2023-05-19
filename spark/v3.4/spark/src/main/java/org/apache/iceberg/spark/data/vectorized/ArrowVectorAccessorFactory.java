@@ -23,14 +23,23 @@ import java.nio.ByteBuffer;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.vector.FixedSizeBinaryVector;
 import org.apache.arrow.vector.ValueVector;
+import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.StructVector;
+import org.apache.iceberg.arrow.vectorized.ArrowGeometryVectorAccessor;
+import org.apache.iceberg.arrow.vectorized.ArrowVectorAccessor;
 import org.apache.iceberg.arrow.vectorized.GenericArrowVectorAccessorFactory;
+import org.apache.iceberg.arrow.vectorized.VectorHolder;
 import org.apache.iceberg.util.UUIDUtil;
+import org.apache.spark.sql.iceberg.udt.GeometrySerializer;
 import org.apache.spark.sql.types.Decimal;
 import org.apache.spark.sql.vectorized.ArrowColumnVector;
 import org.apache.spark.sql.vectorized.ColumnarArray;
 import org.apache.spark.unsafe.types.UTF8String;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.io.ParseException;
+import org.locationtech.jts.io.WKBReader;
 
 final class ArrowVectorAccessorFactory
     extends GenericArrowVectorAccessorFactory<
@@ -42,6 +51,28 @@ final class ArrowVectorAccessorFactory
         StringFactoryImpl::new,
         StructChildFactoryImpl::new,
         ArrayFactoryImpl::new);
+  }
+
+  @Override
+  public ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector>
+      getVectorAccessor(VectorHolder holder) {
+    if (holder instanceof VectorHolder.GeometryVectorHolder) {
+      VectorHolder.GeometryVectorHolder geometryVectorHolder =
+          (VectorHolder.GeometryVectorHolder) holder;
+      String encoding = geometryVectorHolder.getGeometryVectorEncoding();
+      switch (encoding) {
+        case "wkb":
+          return new GeometryWKBAccessor(holder.vector());
+        case "wkb-bbox":
+          return new GeometryWKBBBoxAccessor(holder.vector());
+        case "nested-list":
+          return new GeometryNestedListAccessor(holder.vector());
+        default:
+          throw new IllegalStateException("Invalid vectorized geometry encoding " + encoding);
+      }
+    } else {
+      return super.getVectorAccessor(holder);
+    }
   }
 
   private static final class DecimalFactoryImpl implements DecimalFactory<Decimal> {
@@ -127,6 +158,51 @@ final class ArrowVectorAccessorFactory
     @Override
     public ArrowColumnVector of(ValueVector childVector) {
       return new ArrowColumnVector(childVector);
+    }
+  }
+
+  private static class GeometryWKBAccessor
+      extends ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> {
+    private final VarBinaryVector vector;
+    private final WKBReader wkbReader;
+
+    GeometryWKBAccessor(ValueVector vector) {
+      super(vector);
+      this.vector = (VarBinaryVector) vector;
+      this.wkbReader = new WKBReader();
+    }
+
+    @Override
+    public byte[] getBinary(int rowId) {
+      byte[] wkb = vector.get(rowId);
+      try {
+        Geometry geometry = wkbReader.read(wkb);
+        return GeometrySerializer.serialize(geometry);
+      } catch (ParseException e) {
+        throw new IllegalArgumentException("Failed to parse WKB to geometry", e);
+      }
+    }
+  }
+
+  private static class GeometryWKBBBoxAccessor extends GeometryWKBAccessor {
+    GeometryWKBBBoxAccessor(ValueVector vector) {
+      super(((StructVector) vector).getChild("wkb"));
+    }
+  }
+
+  private static class GeometryNestedListAccessor
+      extends ArrowVectorAccessor<Decimal, UTF8String, ColumnarArray, ArrowColumnVector> {
+    private final ArrowGeometryVectorAccessor.NestedListAccessor accessor;
+
+    GeometryNestedListAccessor(ValueVector vector) {
+      super(vector);
+      accessor = new ArrowGeometryVectorAccessor.NestedListAccessor((StructVector) vector);
+    }
+
+    @Override
+    public byte[] getBinary(int rowId) {
+      Geometry geometry = accessor.getGeometry(rowId);
+      return GeometrySerializer.serialize(geometry);
     }
   }
 }
