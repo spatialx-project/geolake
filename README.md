@@ -36,10 +36,4 @@ WHERE ST_Contains(geom, ST_Point(0.5, 0.5));
 
 Check this repo [docker-spark-geolake](https://github.com/spatialx-project/docker-spark-geolake) for early access, there are some [notebooks](https://github.com/spatialx-project/docker-spark-geolake/tree/main/spark/notebooks) inside.
 
-Source code and documentation will be released soon.
 
-## PVLDB Artifact
-
-We are submitting a paper titled "GeoLake: Bringing Geospatial Support to Lakehouses" to VLDB (Very Large Data Bases), and we have made the experiment-related code, data, and results available at this repository. Specialy, check [parquet-benchmark](https://github.com/spatialx-project/geplake-parquet-benchmark) for Parquet-related experiments(paper's section 7.2), check [serde-benckmark](https://github.com/Kontinuation/play-with-geometry-serde) for Serde-related experiments(paper's section 7.3), check [Partition-Resolution](https://github.com/spatialx-project/docker-spark-geolake/blob/main/spark/notebooks/benchmark-portotaxi.ipynb) for Partition-related experiments(paper's section 7.4), check [end-2-end](https://github.com/spatialx-project/docker-spark-geolake/blob/main/spark/notebooks/benchmark-portotaxi.ipynb) for end-2-end experiments(paper's section 7.5).
-
-It is noteworthy that, for Partition-related experiments and end-2-end experiments, the corresponding repository only contains code for the Portotaxi dataset. For the TIGER2018 and MSBuildings datasets, you only need to modify the logic for reading the dataset in the code.
