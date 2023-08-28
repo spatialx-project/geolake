@@ -18,8 +18,8 @@
  */
 package org.apache.iceberg.data;
 
-import java.util.Map;
 import java.util.Collection;
+import java.util.Map;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableScan;

@@ -18,8 +18,10 @@
  */
 package org.apache.iceberg.expressions;
 
-import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.*;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_X_MAX;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_X_MIN;
 import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_Y_MAX;
+import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.GEOM_Y_MIN;
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
@@ -54,7 +56,7 @@ public class TestAggregateEvaluator {
           // any value counts, including nulls
           ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 50L),
           // null value counts
-          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,0L),
+          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5, 0L),
           // nan value counts
           null,
           // lower bounds
@@ -95,68 +97,78 @@ public class TestAggregateEvaluator {
           ImmutableMap.of(1, toByteBuffer(IntegerType.get(), 3333)));
 
   private static final DataFile GEOM_FILE =
-    new TestDataFile(
-      "file.avro",
-      Row.of(),
-      50,
-      // any value counts, including nulls
-      ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 50L),
-      // null value counts
-      ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,0L),
-      // nan value counts
-      null,
-      // lower bounds
-      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN + 1, GEOM_Y_MIN))),
-      // upper bounds
-      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX, GEOM_Y_MAX - 1))));
+      new TestDataFile(
+          "file.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 50L),
+          // null value counts
+          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5, 0L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN + 1, GEOM_Y_MIN))),
+          // upper bounds
+          ImmutableMap.of(
+              5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX, GEOM_Y_MAX - 1))));
 
   private static final DataFile MISSING_SOME_NULLS_GEOM_FILE =
-    new TestDataFile(
-      "file.avro",
-      Row.of(),
-      50,
-      // any value counts, including nulls
-      ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 40L),
-      // null value counts
-      ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5,10L),
-      // nan value counts
-      null,
-      // lower bounds
-      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN, GEOM_Y_MIN + 1))),
-      // upper bounds
-      ImmutableMap.of(5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX - 1, GEOM_Y_MAX))));
+      new TestDataFile(
+          "file.avro",
+          Row.of(),
+          50,
+          // any value counts, including nulls
+          ImmutableMap.of(1, 50L, 3, 50L, 4, 50L, 5, 40L),
+          // null value counts
+          ImmutableMap.of(1, 10L, 3, 50L, 4, 10L, 5, 10L),
+          // nan value counts
+          null,
+          // lower bounds
+          ImmutableMap.of(
+              5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MIN, GEOM_Y_MIN + 1))),
+          // upper bounds
+          ImmutableMap.of(
+              5, toByteBuffer(Types.GeometryBoundType.get(), Pair.of(GEOM_X_MAX - 1, GEOM_Y_MAX))));
 
   private static final DataFile[] dataFiles = {
     FILE, MISSING_SOME_NULLS_STATS_1, MISSING_SOME_NULLS_STATS_2
   };
 
-  private static final DataFile[] geoDataFiles = {
-    GEOM_FILE, MISSING_SOME_NULLS_GEOM_FILE
-  };
+  private static final DataFile[] geoDataFiles = {GEOM_FILE, MISSING_SOME_NULLS_GEOM_FILE};
 
   @Test
   public void testGeomAggregate() {
     List<Expression> list =
-      ImmutableList.of(
-        Expressions.countStar(),
-        Expressions.count("geom"),
-        Expressions.max("geom"),
-        Expressions.min("geom"),
-        Expressions.stMinX("geom"),
-        Expressions.stMinY("geom"),
-        Expressions.stMaxX("geom"),
-        Expressions.stMaxY("geom")
-        );
+        ImmutableList.of(
+            Expressions.countStar(),
+            Expressions.count("geom"),
+            Expressions.max("geom"),
+            Expressions.min("geom"),
+            Expressions.stMinX("geom"),
+            Expressions.stMinY("geom"),
+            Expressions.stMaxX("geom"),
+            Expressions.stMaxY("geom"));
     AggregateEvaluator aggregateEvaluator = AggregateEvaluator.create(SCHEMA, list);
     for (DataFile dataFile : geoDataFiles) {
       aggregateEvaluator.update(dataFile);
     }
     Assert.assertTrue(aggregateEvaluator.allAggregatorsValid());
     StructLike result = aggregateEvaluator.result();
-    for (int i=0; i<result.size(); i++) {
+    for (int i = 0; i < result.size(); i++) {
       System.out.println(result.get(i, Object.class));
     }
-    Object[] expected = {100L, 80L, Pair.of(GEOM_X_MAX, GEOM_Y_MAX), Pair.of(GEOM_X_MIN, GEOM_Y_MIN), GEOM_X_MIN, GEOM_Y_MIN, GEOM_X_MAX, GEOM_Y_MAX};
+    Object[] expected = {
+      100L,
+      80L,
+      Pair.of(GEOM_X_MAX, GEOM_Y_MAX),
+      Pair.of(GEOM_X_MIN, GEOM_Y_MIN),
+      GEOM_X_MIN,
+      GEOM_Y_MIN,
+      GEOM_X_MAX,
+      GEOM_Y_MAX
+    };
     assertEvaluatorResult(result, expected);
   }
 

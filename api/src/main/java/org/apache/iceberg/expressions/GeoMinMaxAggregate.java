@@ -18,13 +18,12 @@
  */
 package org.apache.iceberg.expressions;
 
+import java.util.Comparator;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.types.Comparators;
 import org.apache.iceberg.types.Conversions;
 import org.apache.iceberg.types.Type.PrimitiveType;
 import org.apache.iceberg.types.Types;
-
-import java.util.Comparator;
 
 public class GeoMinMaxAggregate<T> extends ValueAggregate<T> {
   private final int fieldId;
@@ -57,13 +56,17 @@ public class GeoMinMaxAggregate<T> extends ValueAggregate<T> {
     }
     Pair<Double, Double> res;
     if (this.geomOp == Operation.ST_MINX || this.geomOp == Operation.ST_MINY) {
-      res = Conversions.fromByteBuffer(Types.GeometryBoundType.get(), safeGet(file.lowerBounds(), fieldId));
+      res =
+          Conversions.fromByteBuffer(
+              Types.GeometryBoundType.get(), safeGet(file.lowerBounds(), fieldId));
       if (res == null) {
         return null;
       }
       return this.geomOp == Operation.ST_MINX ? res.first() : res.second();
     } else if (this.geomOp == Operation.ST_MAXX || this.geomOp == Operation.ST_MAXY) {
-      res = Conversions.fromByteBuffer(Types.GeometryBoundType.get(), safeGet(file.upperBounds(), fieldId));
+      res =
+          Conversions.fromByteBuffer(
+              Types.GeometryBoundType.get(), safeGet(file.upperBounds(), fieldId));
       if (res == null) {
         return null;
       }

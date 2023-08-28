@@ -74,10 +74,10 @@ class ValueAggregate<T> extends BoundAggregate<T, T> {
     Long valueCount = safeGet(file.valueCounts(), fieldId);
     Long nullCount = safeGet(file.nullValueCounts(), fieldId);
     boolean boundAllNull =
-      valueCount != null
-        && valueCount > 0
-        && nullCount != null
-        && nullCount.longValue() == valueCount.longValue();
+        valueCount != null
+            && valueCount > 0
+            && nullCount != null
+            && nullCount.longValue() == valueCount.longValue();
     return hasBound || boundAllNull;
   }
 }

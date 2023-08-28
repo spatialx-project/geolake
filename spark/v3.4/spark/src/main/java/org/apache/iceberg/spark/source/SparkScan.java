@@ -31,7 +31,6 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.expressions.Binder;
 import org.apache.iceberg.expressions.Expression;
-import org.apache.iceberg.relocated.com.google.common.base.Preconditions;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Sets;
 import org.apache.iceberg.spark.Spark3Util;
@@ -98,7 +97,6 @@ public abstract class SparkScan implements Scan, SupportsReportStatistics {
     this.caseSensitive = readConf.caseSensitive();
     this.expectedSchema = expectedSchema;
     this.filterExpressions = filters != null ? filters : Collections.emptyList();
-    this.readTimestampWithoutZone = readConf.handleTimestampWithoutZone();
     this.branch = readConf.branch();
   }
 

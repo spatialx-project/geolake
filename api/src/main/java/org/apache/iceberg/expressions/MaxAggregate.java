@@ -45,7 +45,8 @@ public class MaxAggregate<T> extends ValueAggregate<T> {
 
   @Override
   protected Object evaluateRef(DataFile file) {
-    PrimitiveType resType = type.equals(Types.GeometryType.get()) ? Types.GeometryBoundType.get() : type;
+    PrimitiveType resType =
+        type.equals(Types.GeometryType.get()) ? Types.GeometryBoundType.get() : type;
     return Conversions.fromByteBuffer(resType, safeGet(file.upperBounds(), fieldId));
   }
 

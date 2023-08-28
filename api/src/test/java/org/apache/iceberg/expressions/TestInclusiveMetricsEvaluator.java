@@ -52,10 +52,9 @@ import static org.apache.iceberg.expressions.TestGeometryHelpers.MetricEvalData.
 import static org.apache.iceberg.types.Conversions.toByteBuffer;
 import static org.apache.iceberg.types.Types.NestedField.optional;
 import static org.apache.iceberg.types.Types.NestedField.required;
+
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Stream;
-import org.apache.iceberg.AssertHelpers;
 import org.apache.iceberg.DataFile;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.TestHelpers.Row;
