@@ -26,6 +26,7 @@ import org.apache.flink.api.java.functions.KeySelector;
 import org.apache.flink.api.java.typeutils.RowTypeInfo;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.types.Row;
 import org.apache.flink.types.RowKind;
 import org.apache.iceberg.FileFormat;
@@ -44,12 +45,17 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.util.StructLikeSet;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestFlinkIcebergSinkV2Base {
 
   protected static final int FORMAT_V2 = 2;
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
+  protected static final TypeInformation<Row> ROW_TYPE_INFO_WITH_GEOM =
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM.getFieldTypes());
 
   protected static final int ROW_ID_POS = 0;
   protected static final int ROW_DATA_POS = 1;
@@ -68,6 +74,8 @@ public class TestFlinkIcebergSinkV2Base {
           "-D", RowKind.DELETE,
           "-U", RowKind.UPDATE_BEFORE,
           "+U", RowKind.UPDATE_AFTER);
+  protected Boolean isParquet = false;
+  private static final Geometry GEOM = new GeometryFactory().createPoint(new Coordinate(1, 1));
 
   protected Row row(String rowKind, int id, String data) {
     RowKind kind = ROW_KIND_MAP.get(rowKind);
@@ -75,7 +83,7 @@ public class TestFlinkIcebergSinkV2Base {
       throw new IllegalArgumentException("Unknown row kind: " + rowKind);
     }
 
-    return Row.ofKind(kind, id, data);
+    return isParquet ? Row.ofKind(kind, id, data, GEOM) : Row.ofKind(kind, id, data);
   }
 
   protected void testUpsertOnIdDataKey(String branch) throws Exception {
@@ -301,11 +309,14 @@ public class TestFlinkIcebergSinkV2Base {
       String branch)
       throws Exception {
     DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(elementsPerCheckpoint), ROW_TYPE_INFO);
-
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        env.addSource(
+            new BoundedTestSource<>(elementsPerCheckpoint),
+            isParquet ? ROW_TYPE_INFO_WITH_GEOM : ROW_TYPE_INFO);
+    TableSchema tableSchema =
+        isParquet ? SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM : SimpleDataUtil.FLINK_SCHEMA;
+    FlinkSink.forRow(dataStream, tableSchema)
         .tableLoader(tableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .tableSchema(tableSchema)
         .writeParallelism(parallelism)
         .equalityFieldColumns(equalityFieldColumns)
         .upsert(insertAsUpsert)
@@ -332,7 +343,9 @@ public class TestFlinkIcebergSinkV2Base {
   }
 
   protected Record record(int id, String data) {
-    return SimpleDataUtil.createRecord(id, data);
+    return isParquet
+        ? SimpleDataUtil.createRecord(id, data, GEOM)
+        : SimpleDataUtil.createRecord(id, data);
   }
 
   private List<Snapshot> findValidSnapshots() {

@@ -19,6 +19,8 @@
 package org.apache.iceberg.flink;
 
 import java.util.List;
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.BigIntType;
 import org.apache.flink.table.types.logical.BinaryType;
@@ -31,6 +33,7 @@ import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.TimeType;
 import org.apache.flink.table.types.logical.TimestampType;
@@ -41,6 +44,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.TypeUtil;
 import org.apache.iceberg.types.Types;
+import org.locationtech.jts.geom.Geometry;
 
 class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
   TypeToFlinkType() {}
@@ -123,6 +127,10 @@ class TypeToFlinkType extends TypeUtil.SchemaVisitor<LogicalType> {
         return new BinaryType(fixedType.length());
       case BINARY:
         return new VarBinaryType(VarBinaryType.MAX_LENGTH);
+      case GEOMETRY:
+        return new RawType(
+            Geometry.class,
+            TypeInformation.of(Geometry.class).createSerializer(new ExecutionConfig()));
       case DECIMAL:
         Types.DecimalType decimal = (Types.DecimalType) primitive;
         return new DecimalType(decimal.precision(), decimal.scale());

@@ -32,9 +32,6 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
-import org.apache.iceberg.parquet.GeoParquetEnums.GeometryEncoding;
-import org.apache.iceberg.parquet.GeoParquetEnums.GeometryValueType;
-import org.apache.iceberg.parquet.GeoParquetUtil;
 import org.apache.iceberg.parquet.GeoParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
@@ -123,19 +120,10 @@ public abstract class BaseParquetReaders<T> {
     }
   }
 
-  private class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final MessageType type;
-    private final Map<Integer, ?> idToConstant;
-    private final GeometryValueType geometryJavaType;
-
+  private class ReadBuilder extends GeoParquetReadBuilder {
     private ReadBuilder(
         MessageType type, Map<Integer, ?> idToConstant, Map<String, String> properties) {
-      this.type = type;
-      this.idToConstant = idToConstant;
-      this.geometryJavaType =
-          GeometryValueType.of(
-              properties.getOrDefault(
-                  "read.parquet.geometry.java-type", GeometryValueType.JTS_GEOMETRY.toString()));
+      super(type, idToConstant, properties);
     }
 
     @Override
@@ -248,32 +236,6 @@ public abstract class BaseParquetReaders<T> {
           repeatedR,
           ParquetValueReaders.option(keyType, keyD, keyReader),
           ParquetValueReaders.option(valueType, valueD, valueReader));
-    }
-
-    @Override
-    public ParquetValueReader<?> struct(
-        org.apache.iceberg.types.Type.PrimitiveType iPrimitive, GroupType struct) {
-      if (iPrimitive != null
-          && iPrimitive.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
-        GeometryEncoding geometryEncoding = GeoParquetUtil.getGeometryEncodingOfGroupType(struct);
-        switch (geometryEncoding) {
-          case WKB_BBOX:
-            return GeoParquetValueReaders.createGeometryWKBBBoxReader(
-                type, currentPath(), geometryJavaType);
-          case NESTED_LIST:
-            return GeoParquetValueReaders.createGeometryNestedListReader(
-                type, currentPath(), geometryJavaType);
-          default:
-            throw new UnsupportedOperationException(
-                "Unsupported geometry encoding of group type " + struct);
-        }
-      } else {
-        throw new UnsupportedOperationException(
-            "Cannot create reader for reading group type "
-                + struct
-                + " as primitive type "
-                + iPrimitive);
-      }
     }
 
     @Override

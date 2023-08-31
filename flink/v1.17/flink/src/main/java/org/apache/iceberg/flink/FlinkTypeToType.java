@@ -33,6 +33,7 @@ import org.apache.flink.table.types.logical.IntType;
 import org.apache.flink.table.types.logical.LocalZonedTimestampType;
 import org.apache.flink.table.types.logical.MapType;
 import org.apache.flink.table.types.logical.MultisetType;
+import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TimeType;
@@ -43,6 +44,7 @@ import org.apache.flink.table.types.logical.VarCharType;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.locationtech.jts.geom.Geometry;
 
 class FlinkTypeToType extends FlinkTypeVisitor<Type> {
 
@@ -167,6 +169,15 @@ class FlinkTypeToType extends FlinkTypeVisitor<Type> {
     } else {
       return Types.MapType.ofRequired(getNextId(), getNextId(), keyType, valueType);
     }
+  }
+
+  @Override
+  public Type visit(RawType<?> rawType) {
+    Class<?> originatingClass = rawType.getOriginatingClass();
+    if (Geometry.class.isAssignableFrom(originatingClass)) {
+      return Types.GeometryType.get();
+    }
+    throw new UnsupportedOperationException("Unsupported raw type: " + rawType);
   }
 
   @Override

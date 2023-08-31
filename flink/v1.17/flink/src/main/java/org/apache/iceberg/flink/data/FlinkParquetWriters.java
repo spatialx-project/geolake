@@ -22,19 +22,26 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.function.Function;
+import java.util.function.Supplier;
 import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.data.binary.BinaryRawValueData;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
+import org.apache.flink.table.types.logical.LogicalTypeRoot;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.logical.RowType.RowField;
 import org.apache.flink.table.types.logical.SmallIntType;
 import org.apache.flink.table.types.logical.TinyIntType;
+import org.apache.iceberg.parquet.GeoParquetEnums.GeometryValueType;
+import org.apache.iceberg.parquet.GeoParquetValueWriters;
 import org.apache.iceberg.parquet.ParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetValueWriter;
 import org.apache.iceberg.parquet.ParquetValueWriters;
@@ -49,6 +56,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation.DecimalLogicalTypeAnnotat
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.locationtech.jts.geom.Geometry;
 
 public class FlinkParquetWriters {
   private FlinkParquetWriters() {}
@@ -59,20 +67,140 @@ public class FlinkParquetWriters {
         ParquetWithFlinkSchemaVisitor.visit(schema, type, new WriteBuilder(type));
   }
 
-  private static class WriteBuilder extends ParquetWithFlinkSchemaVisitor<ParquetValueWriter<?>> {
-    private final MessageType type;
+  public static <T> ParquetValueWriter<T> buildWriter(
+      LogicalType schema, MessageType type, Map<String, String> properties) {
+    TableSchemaAwareWriteBuilder builder = new TableSchemaAwareWriteBuilder(type, properties);
+    return (ParquetValueWriter<T>) ParquetWithFlinkSchemaVisitor.visit(schema, type, builder);
+  }
 
-    WriteBuilder(MessageType type) {
-      this.type = type;
+  private static class TableSchemaAwareWriteBuilder
+      extends ParquetWithFlinkSchemaVisitor<ParquetValueWriter<?>> {
+    private final GenericWriteBuilder writeBuilder;
+    private final MessageType fileSchema;
+    private final GeometryValueType geometryJavaType;
+
+    private TableSchemaAwareWriteBuilder(MessageType fileSchema, Map<String, String> properties) {
+      this.fileSchema = fileSchema;
+      this.geometryJavaType =
+          GeometryValueType.of(
+              properties.getOrDefault(
+                  "write.parquet.geometry.java-type", GeometryValueType.OBJECT.toString()));
+      this.writeBuilder = new GenericWriteBuilder(fileSchema, this::path, this::currentPath);
     }
 
     @Override
     public ParquetValueWriter<?> message(
         RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
-      return struct(sStruct, message.asGroupType(), fields);
+      return writeBuilder.struct(sStruct, message, fields);
     }
 
     @Override
+    public ParquetValueWriter<?> struct(
+        RowType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+      return writeBuilder.struct(sStruct, struct, fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> list(
+        ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+      return writeBuilder.list(sArray, array, elementWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> map(
+        MapType sMap,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
+      return writeBuilder.map(sMap, map, keyWriter, valueWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> primitive(LogicalType sPrimitive, PrimitiveType primitive) {
+      if (sPrimitive != null
+          && sPrimitive.is(LogicalTypeRoot.RAW)
+          && ((RawType<?>) sPrimitive).getOriginatingClass().equals(Geometry.class)) {
+        ColumnDescriptor desc = fileSchema.getColumnDescription(currentPath());
+        if (primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.BINARY) {
+          return GeoParquetValueWriters.createGeometryWKBWriter(desc, geometryJavaType);
+        } else {
+          throw new UnsupportedOperationException(
+              "Encoding geometry values as " + primitive + " is not supported");
+        }
+      }
+      return writeBuilder.primitive(sPrimitive, primitive);
+    }
+  }
+
+  private static class WriteBuilder extends ParquetWithFlinkSchemaVisitor<ParquetValueWriter<?>> {
+    private final GenericWriteBuilder writeBuilder;
+
+    private WriteBuilder(MessageType type) {
+      this.writeBuilder = new GenericWriteBuilder(type, this::path, this::currentPath);
+    }
+
+    @Override
+    public ParquetValueWriter<?> message(
+        RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
+      return writeBuilder.struct(sStruct, message, fields);
+    }
+
+    @Override
+    public ParquetValueWriter<?> struct(
+        RowType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
+      return writeBuilder.struct(sStruct, struct, fieldWriters);
+    }
+
+    @Override
+    public ParquetValueWriter<?> list(
+        ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
+      return writeBuilder.list(sArray, array, elementWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> map(
+        MapType sMap,
+        GroupType map,
+        ParquetValueWriter<?> keyWriter,
+        ParquetValueWriter<?> valueWriter) {
+      return writeBuilder.map(sMap, map, keyWriter, valueWriter);
+    }
+
+    @Override
+    public ParquetValueWriter<?> primitive(LogicalType sPrimitive, PrimitiveType primitive) {
+      return writeBuilder.primitive(sPrimitive, primitive);
+    }
+  }
+
+  private static class GenericWriteBuilder {
+    private final MessageType type;
+
+    private final Function<String, String[]> pathFunc;
+
+    private final Supplier<String[]> currentPathSupplier;
+
+    GenericWriteBuilder(
+        MessageType type,
+        Function<String, String[]> pathFunc,
+        Supplier<String[]> currentPathSupplier) {
+      this.type = type;
+      this.pathFunc = pathFunc;
+      this.currentPathSupplier = currentPathSupplier;
+    }
+
+    private String[] path(String name) {
+      return pathFunc.apply(name);
+    }
+
+    private String[] currentPath() {
+      return currentPathSupplier.get();
+    }
+
+    public ParquetValueWriter<?> message(
+        RowType sStruct, MessageType message, List<ParquetValueWriter<?>> fields) {
+      return struct(sStruct, message.asGroupType(), fields);
+    }
+
     public ParquetValueWriter<?> struct(
         RowType sStruct, GroupType struct, List<ParquetValueWriter<?>> fieldWriters) {
       List<Type> fields = struct.getFields();
@@ -87,7 +215,6 @@ public class FlinkParquetWriters {
       return new RowDataWriter(writers, flinkTypes);
     }
 
-    @Override
     public ParquetValueWriter<?> list(
         ArrayType sArray, GroupType array, ParquetValueWriter<?> elementWriter) {
       GroupType repeated = array.getFields().get(0).asGroupType();
@@ -103,7 +230,6 @@ public class FlinkParquetWriters {
           sArray.getElementType());
     }
 
-    @Override
     public ParquetValueWriter<?> map(
         MapType sMap,
         GroupType map,
@@ -129,7 +255,6 @@ public class FlinkParquetWriters {
       return ParquetValueWriters.option(fieldType, maxD, writer);
     }
 
-    @Override
     public ParquetValueWriter<?> primitive(LogicalType fType, PrimitiveType primitive) {
       ColumnDescriptor desc = type.getColumnDescription(currentPath());
 
@@ -487,10 +612,12 @@ public class FlinkParquetWriters {
 
   private static class RowDataWriter extends ParquetValueWriters.StructWriter<RowData> {
     private final RowData.FieldGetter[] fieldGetter;
+    private final List<LogicalType> types;
 
     RowDataWriter(List<ParquetValueWriter<?>> writers, List<LogicalType> types) {
       super(writers);
       fieldGetter = new RowData.FieldGetter[types.size()];
+      this.types = types;
       for (int i = 0; i < types.size(); i += 1) {
         fieldGetter[i] = RowData.createFieldGetter(types.get(i), i);
       }
@@ -498,7 +625,16 @@ public class FlinkParquetWriters {
 
     @Override
     protected Object get(RowData struct, int index) {
-      return fieldGetter[index].getFieldOrNull(struct);
+      Object obj = fieldGetter[index].getFieldOrNull(struct);
+      if (obj == null) {
+        return null;
+      }
+      if (this.types.get(index) instanceof RawType) {
+        RawType<?> rawType = (RawType<?>) this.types.get(index);
+        BinaryRawValueData rawValueData = (BinaryRawValueData) obj;
+        return rawValueData.toObject(rawType.getTypeSerializer());
+      }
+      return obj;
     }
   }
 }

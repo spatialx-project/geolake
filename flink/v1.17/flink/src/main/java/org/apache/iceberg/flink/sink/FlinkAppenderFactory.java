@@ -123,7 +123,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
 
         case PARQUET:
           return Parquet.write(outputFile)
-              .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType))
+              .createWriterFunc(
+                  msgType -> FlinkParquetWriters.buildWriter(flinkSchema, msgType, props))
               .setAll(props)
               .metricsConfig(metricsConfig)
               .schema(schema)
@@ -193,7 +194,8 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
         case PARQUET:
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(
-                  msgType -> FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType))
+                  msgType ->
+                      FlinkParquetWriters.buildWriter(lazyEqDeleteFlinkSchema(), msgType, props))
               .withPartition(partition)
               .overwrite()
               .setAll(props)
@@ -252,7 +254,7 @@ public class FlinkAppenderFactory implements FileAppenderFactory<RowData>, Seria
               FlinkSchemaUtil.convert(DeleteSchemaUtil.posDeleteSchema(posDeleteRowSchema));
           return Parquet.writeDeletes(outputFile.encryptingOutputFile())
               .createWriterFunc(
-                  msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType))
+                  msgType -> FlinkParquetWriters.buildWriter(flinkPosDeleteSchema, msgType, props))
               .withPartition(partition)
               .overwrite()
               .setAll(props)

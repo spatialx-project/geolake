@@ -37,6 +37,8 @@ import org.apache.flink.table.data.StringData;
 import org.apache.flink.table.data.TimestampData;
 import org.apache.iceberg.MetadataColumns;
 import org.apache.iceberg.Schema;
+import org.apache.iceberg.data.parquet.GeoParquetReadBuilder;
+import org.apache.iceberg.parquet.GeoParquetValueReaders;
 import org.apache.iceberg.parquet.ParquetSchemaUtil;
 import org.apache.iceberg.parquet.ParquetValueReader;
 import org.apache.iceberg.parquet.ParquetValueReaders;
@@ -63,21 +65,31 @@ public class FlinkParquetReaders {
     return buildReader(expectedSchema, fileSchema, ImmutableMap.of());
   }
 
-  @SuppressWarnings("unchecked")
   public static ParquetValueReader<RowData> buildReader(
       Schema expectedSchema, MessageType fileSchema, Map<Integer, ?> idToConstant) {
     return (ParquetValueReader<RowData>)
         TypeWithSchemaVisitor.visit(
-            expectedSchema.asStruct(), fileSchema, new ReadBuilder(fileSchema, idToConstant));
+            expectedSchema.asStruct(),
+            fileSchema,
+            new ReadBuilder(fileSchema, idToConstant, ImmutableMap.of()));
   }
 
-  private static class ReadBuilder extends TypeWithSchemaVisitor<ParquetValueReader<?>> {
-    private final MessageType type;
-    private final Map<Integer, ?> idToConstant;
+  @SuppressWarnings("unchecked")
+  public static ParquetValueReader<RowData> buildReader(
+      Schema expectedSchema,
+      MessageType fileSchema,
+      Map<Integer, ?> idToConstant,
+      Map<String, String> properties) {
+    return (ParquetValueReader<RowData>)
+        TypeWithSchemaVisitor.visit(
+            expectedSchema.asStruct(),
+            fileSchema,
+            new ReadBuilder(fileSchema, idToConstant, properties));
+  }
 
-    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant) {
-      this.type = type;
-      this.idToConstant = idToConstant;
+  private static class ReadBuilder extends GeoParquetReadBuilder {
+    ReadBuilder(MessageType type, Map<Integer, ?> idToConstant, Map<String, String> properties) {
+      super(type, idToConstant, properties);
     }
 
     @Override
@@ -262,7 +274,11 @@ public class FlinkParquetReaders {
       switch (primitive.getPrimitiveTypeName()) {
         case FIXED_LEN_BYTE_ARRAY:
         case BINARY:
-          return new ParquetValueReaders.ByteArrayReader(desc);
+          if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.GEOMETRY) {
+            return GeoParquetValueReaders.createGeometryWKBReader(desc, geometryJavaType);
+          } else {
+            return new ParquetValueReaders.ByteArrayReader(desc);
+          }
         case INT32:
           if (expected.typeId() == org.apache.iceberg.types.Type.TypeID.LONG) {
             return new ParquetValueReaders.IntAsLongReader(desc);

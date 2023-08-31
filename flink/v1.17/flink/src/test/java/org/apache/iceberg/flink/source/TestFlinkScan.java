@@ -72,6 +72,7 @@ public abstract class TestFlinkScan {
 
   // parametrized variables
   protected final FileFormat fileFormat;
+  protected Boolean isParquet;
 
   @Parameterized.Parameters(name = "format={0}")
   public static Object[] parameters() {
@@ -79,6 +80,7 @@ public abstract class TestFlinkScan {
   }
 
   TestFlinkScan(String fileFormat) {
+    this.isParquet = fileFormat.equals("parquet");
     this.fileFormat = FileFormat.fromString(fileFormat);
   }
 

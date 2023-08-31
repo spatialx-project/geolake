@@ -26,11 +26,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.apache.flink.api.common.ExecutionConfig;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.table.api.DataTypes;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.StringData;
+import org.apache.flink.table.data.binary.BinaryRawValueData;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.types.RowKind;
 import org.apache.hadoop.conf.Configuration;
@@ -71,6 +74,7 @@ import org.apache.iceberg.util.Pair;
 import org.apache.iceberg.util.StructLikeSet;
 import org.apache.iceberg.util.StructLikeWrapper;
 import org.junit.Assert;
+import org.locationtech.jts.geom.Geometry;
 
 public class SimpleDataUtil {
 
@@ -81,12 +85,32 @@ public class SimpleDataUtil {
           Types.NestedField.optional(1, "id", Types.IntegerType.get()),
           Types.NestedField.optional(2, "data", Types.StringType.get()));
 
+  public static final Schema SCHEMA_WITH_GEOM =
+      new Schema(
+          Types.NestedField.optional(1, "id", Types.IntegerType.get()),
+          Types.NestedField.optional(2, "data", Types.StringType.get()),
+          Types.NestedField.optional(3, "geo", Types.GeometryType.get()));
+
   public static final TableSchema FLINK_SCHEMA =
       TableSchema.builder().field("id", DataTypes.INT()).field("data", DataTypes.STRING()).build();
 
+  public static final TableSchema FLINK_SCHEMA_WITH_GEOM =
+      TableSchema.builder()
+          .field("id", DataTypes.INT())
+          .field("data", DataTypes.STRING())
+          .field(
+              "geo",
+              DataTypes.RAW(
+                  Geometry.class,
+                  TypeInformation.of(Geometry.class).createSerializer(new ExecutionConfig())))
+          .build();
+
   public static final RowType ROW_TYPE = (RowType) FLINK_SCHEMA.toRowDataType().getLogicalType();
+  public static final RowType ROW_TYPE_WITH_GEOM =
+      (RowType) FLINK_SCHEMA_WITH_GEOM.toRowDataType().getLogicalType();
 
   public static final Record RECORD = GenericRecord.create(SCHEMA);
+  public static final Record RECORD_WITH_GEOM = GenericRecord.create(SCHEMA_WITH_GEOM);
 
   public static Table createTable(
       String path, Map<String, String> properties, boolean partitioned) {
@@ -106,24 +130,56 @@ public class SimpleDataUtil {
     return record;
   }
 
+  public static Record createRecord(Integer id, String data, Geometry geo) {
+    Record record = RECORD_WITH_GEOM.copy();
+    record.setField("id", id);
+    record.setField("data", data);
+    record.setField("geo", geo);
+    return record;
+  }
+
   public static RowData createRowData(Integer id, String data) {
     return GenericRowData.of(id, StringData.fromString(data));
+  }
+
+  public static RowData createRowData(Integer id, String data, Geometry geo) {
+    return GenericRowData.of(id, StringData.fromString(data), BinaryRawValueData.fromObject(geo));
   }
 
   public static RowData createInsert(Integer id, String data) {
     return GenericRowData.ofKind(RowKind.INSERT, id, StringData.fromString(data));
   }
 
+  public static RowData createInsert(Integer id, String data, Geometry geo) {
+    return GenericRowData.ofKind(
+        RowKind.INSERT, id, StringData.fromString(data), BinaryRawValueData.fromObject(geo));
+  }
+
   public static RowData createDelete(Integer id, String data) {
     return GenericRowData.ofKind(RowKind.DELETE, id, StringData.fromString(data));
+  }
+
+  public static RowData createDelete(Integer id, String data, Geometry geo) {
+    return GenericRowData.ofKind(
+        RowKind.DELETE, id, StringData.fromString(data), BinaryRawValueData.fromObject(geo));
   }
 
   public static RowData createUpdateBefore(Integer id, String data) {
     return GenericRowData.ofKind(RowKind.UPDATE_BEFORE, id, StringData.fromString(data));
   }
 
+  public static RowData createUpdateBefore(Integer id, String data, Geometry geo) {
+    return GenericRowData.ofKind(
+        RowKind.UPDATE_BEFORE, id, StringData.fromString(data), BinaryRawValueData.fromObject(geo));
+  }
+
   public static RowData createUpdateAfter(Integer id, String data) {
     return GenericRowData.ofKind(RowKind.UPDATE_AFTER, id, StringData.fromString(data));
+  }
+
+  public static RowData createUpdateAfter(Integer id, String data, Geometry geo) {
+    return GenericRowData.ofKind(
+        RowKind.UPDATE_AFTER, id, StringData.fromString(data), BinaryRawValueData.fromObject(geo));
   }
 
   public static DataFile writeFile(
@@ -223,7 +279,13 @@ public class SimpleDataUtil {
     for (RowData row : rows) {
       Integer id = row.isNullAt(0) ? null : row.getInt(0);
       String data = row.isNullAt(1) ? null : row.getString(1).toString();
-      records.add(createRecord(id, data));
+      if (row.getArity() == 2) {
+        records.add(createRecord(id, data));
+      } else {
+        BinaryRawValueData g = (BinaryRawValueData) row.getRawValue(2);
+        Geometry geom = g != null ? (Geometry) g.getJavaObject() : null;
+        records.add(createRecord(id, data, geom));
+      }
     }
     return records;
   }

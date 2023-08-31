@@ -47,9 +47,11 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
   private RowType dataFlinkType;
   private RowType equalityDeleteFlinkType;
   private RowType positionDeleteFlinkType;
+  private Map<String, String> properties;
 
   FlinkFileWriterFactory(
       Table table,
+      Map<String, String> properties,
       FileFormat dataFileFormat,
       Schema dataSchema,
       RowType dataFlinkType,
@@ -72,7 +74,7 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
         equalityDeleteRowSchema,
         equalityDeleteSortOrder,
         positionDeleteRowSchema);
-
+    this.properties = properties;
     this.dataFlinkType = dataFlinkType;
     this.equalityDeleteFlinkType = equalityDeleteFlinkType;
     this.positionDeleteFlinkType = positionDeleteFlinkType;
@@ -105,19 +107,20 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
   @Override
   protected void configureDataWrite(Parquet.DataWriteBuilder builder) {
-    builder.createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(dataFlinkType(), msgType));
+    builder.createWriterFunc(
+        msgType -> FlinkParquetWriters.buildWriter(dataFlinkType(), msgType, properties));
   }
 
   @Override
   protected void configureEqualityDelete(Parquet.DeleteWriteBuilder builder) {
     builder.createWriterFunc(
-        msgType -> FlinkParquetWriters.buildWriter(equalityDeleteFlinkType(), msgType));
+        msgType -> FlinkParquetWriters.buildWriter(equalityDeleteFlinkType(), msgType, properties));
   }
 
   @Override
   protected void configurePositionDelete(Parquet.DeleteWriteBuilder builder) {
     builder.createWriterFunc(
-        msgType -> FlinkParquetWriters.buildWriter(positionDeleteFlinkType(), msgType));
+        msgType -> FlinkParquetWriters.buildWriter(positionDeleteFlinkType(), msgType, properties));
     builder.transformPaths(path -> StringData.fromString(path.toString()));
   }
 
@@ -183,11 +186,12 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
     private SortOrder equalityDeleteSortOrder;
     private Schema positionDeleteRowSchema;
     private RowType positionDeleteFlinkType;
+    private Map<String, String> properties;
 
     Builder(Table table) {
       this.table = table;
 
-      Map<String, String> properties = table.properties();
+      this.properties = table.properties();
 
       String dataFileFormatName =
           properties.getOrDefault(DEFAULT_FILE_FORMAT, DEFAULT_FILE_FORMAT_DEFAULT);
@@ -277,6 +281,7 @@ class FlinkFileWriterFactory extends BaseFileWriterFactory<RowData> implements S
 
       return new FlinkFileWriterFactory(
           table,
+          properties,
           dataFileFormat,
           dataSchema,
           dataFlinkType,

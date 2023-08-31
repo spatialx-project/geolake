@@ -32,6 +32,7 @@ project(":iceberg-flink:iceberg-flink-${flinkMajorVersion}") {
     implementation project(':iceberg-orc')
     implementation project(':iceberg-parquet')
     implementation project(':iceberg-hive-metastore')
+    implementation 'org.locationtech.jts.io:jts-io-common'
 
     compileOnly "org.apache.flink:flink-avro:${flinkVersion}"
     // for dropwizard histogram metrics implementation

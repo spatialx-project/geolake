@@ -30,6 +30,8 @@ import org.apache.iceberg.Table;
 import org.apache.iceberg.flink.SimpleDataUtil;
 import org.apache.iceberg.flink.source.BoundedTestSource;
 import org.apache.iceberg.relocated.com.google.common.collect.Lists;
+import org.locationtech.jts.geom.Geometry;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class TestFlinkIcebergSinkBase {
 
@@ -38,8 +40,15 @@ public class TestFlinkIcebergSinkBase {
   protected static final TypeInformation<Row> ROW_TYPE_INFO =
       new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA.getFieldTypes());
 
+  protected static final TypeInformation<Row> ROW_TYPE_INFO_WITH_GEOM =
+      new RowTypeInfo(SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM.getFieldTypes());
+
   protected static final DataFormatConverters.RowConverter CONVERTER =
       new DataFormatConverters.RowConverter(SimpleDataUtil.FLINK_SCHEMA.getFieldDataTypes());
+
+  protected static final DataFormatConverters.RowConverter CONVERTER_WITH_GEOM =
+      new DataFormatConverters.RowConverter(
+          SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM.getFieldDataTypes());
 
   protected BoundedTestSource<Row> createBoundedSource(List<Row> rows) {
     return new BoundedTestSource<>(rows.toArray(new Row[0]));
@@ -58,7 +67,28 @@ public class TestFlinkIcebergSinkBase {
         Row.of(3, prefix + "ccc"));
   }
 
+  private Geometry createRandomGeometry(int i) {
+    GeometryFactory factory = new GeometryFactory();
+    return factory.createPoint(new org.locationtech.jts.geom.Coordinate(1, i + 1));
+  }
+
+  protected List<Row> createRowsWithGeom(String prefix) {
+    return Lists.newArrayList(
+        Row.of(1, prefix + "aaa", null),
+        Row.of(1, prefix + "bbb", null),
+        Row.of(1, prefix + "ccc", createRandomGeometry(1)),
+        Row.of(2, prefix + "aaa", createRandomGeometry(2)),
+        Row.of(2, prefix + "bbb", createRandomGeometry(3)),
+        Row.of(2, prefix + "ccc", null),
+        Row.of(3, prefix + "aaa", createRandomGeometry(4)),
+        Row.of(3, prefix + "bbb", null),
+        Row.of(3, prefix + "ccc", createRandomGeometry(5)));
+  }
+
   protected List<RowData> convertToRowData(List<Row> rows) {
-    return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
+    if (rows.isEmpty() || rows.get(0).getArity() == 2) {
+      return rows.stream().map(CONVERTER::toInternal).collect(Collectors.toList());
+    }
+    return rows.stream().map(CONVERTER_WITH_GEOM::toInternal).collect(Collectors.toList());
   }
 }

@@ -20,6 +20,7 @@ package org.apache.iceberg.flink.data;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.types.logical.LogicalType;
@@ -52,7 +53,8 @@ public class TestFlinkParquetWriter extends DataTest {
     try (FileAppender<RowData> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
-            .createWriterFunc(msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType))
+            .createWriterFunc(
+                msgType -> FlinkParquetWriters.buildWriter(logicalType, msgType, new HashMap<>()))
             .build()) {
       writer.addAll(iterable);
     }

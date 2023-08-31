@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Random;
 import org.apache.iceberg.types.Type;
 import org.apache.iceberg.types.Types;
+import org.locationtech.jts.geom.GeometryFactory;
 
 public class RandomUtil {
 
@@ -144,6 +145,11 @@ public class RandomUtil {
         BigDecimal bigDecimal = new BigDecimal(unscaled, type.scale());
         return negate(choice) ? bigDecimal.negate() : bigDecimal;
 
+      case GEOMETRY:
+        GeometryFactory geometryFactory = new GeometryFactory();
+        return geometryFactory.createPoint(
+            new org.locationtech.jts.geom.Coordinate(random.nextDouble(), random.nextDouble()));
+
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);
@@ -186,6 +192,9 @@ public class RandomUtil {
         byte[] uuidBytes = new byte[16];
         random.nextBytes(uuidBytes);
         return uuidBytes;
+      case GEOMETRY:
+        GeometryFactory geometryFactory = new GeometryFactory();
+        return geometryFactory.createPoint(new org.locationtech.jts.geom.Coordinate(value, value));
       default:
         throw new IllegalArgumentException(
             "Cannot generate random value for unknown type: " + primitive);

@@ -22,15 +22,18 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.table.data.RowData;
+import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.DistributionMode;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.Table;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -42,7 +45,6 @@ import org.apache.iceberg.flink.TableLoader;
 import org.apache.iceberg.flink.TestFixtures;
 import org.apache.iceberg.flink.util.FlinkCompatibilityUtil;
 import org.apache.iceberg.relocated.com.google.common.collect.ImmutableMap;
-import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.relocated.com.google.common.collect.Maps;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
@@ -73,6 +75,13 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
   private final int parallelism;
   private final boolean partitioned;
 
+  private final Schema schema;
+  private final Boolean isParquet;
+
+  private final TableSchema tableSchema;
+  private final TypeInformation<Row> typeInformation;
+  private final RowType rowType;
+
   @Parameterized.Parameters(name = "format={0}, parallelism = {1}, partitioned = {2}")
   public static Object[][] parameters() {
     return new Object[][] {
@@ -95,6 +104,12 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     this.format = FileFormat.fromString(format);
     this.parallelism = parallelism;
     this.partitioned = partitioned;
+    this.isParquet = format.equals("parquet");
+    this.schema = this.isParquet ? SimpleDataUtil.SCHEMA_WITH_GEOM : SimpleDataUtil.SCHEMA;
+    this.tableSchema =
+        this.isParquet ? SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM : SimpleDataUtil.FLINK_SCHEMA;
+    this.typeInformation = this.isParquet ? ROW_TYPE_INFO_WITH_GEOM : ROW_TYPE_INFO;
+    this.rowType = this.isParquet ? SimpleDataUtil.ROW_TYPE_WITH_GEOM : SimpleDataUtil.ROW_TYPE;
   }
 
   @Before
@@ -104,9 +119,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .catalog()
             .createTable(
                 TestFixtures.TABLE_IDENTIFIER,
-                SimpleDataUtil.SCHEMA,
+                schema,
                 partitioned
-                    ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                    ? PartitionSpec.builderFor(schema).identity("data").build()
                     : PartitionSpec.unpartitioned(),
                 ImmutableMap.of(TableProperties.DEFAULT_FILE_FORMAT, format.name()));
 
@@ -122,10 +137,12 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @Test
   public void testWriteRowData() throws Exception {
-    List<Row> rows = Lists.newArrayList(Row.of(1, "hello"), Row.of(2, "world"), Row.of(3, "foo"));
+    List<Row> rows = generateRows("");
     DataStream<RowData> dataStream =
-        env.addSource(createBoundedSource(rows), ROW_TYPE_INFO)
-            .map(CONVERTER::toInternal, FlinkCompatibilityUtil.toTypeInfo(SimpleDataUtil.ROW_TYPE));
+        env.addSource(createBoundedSource(rows), typeInformation)
+            .map(
+                isParquet ? CONVERTER_WITH_GEOM::toInternal : CONVERTER::toInternal,
+                FlinkCompatibilityUtil.toTypeInfo(rowType));
 
     FlinkSink.forRowData(dataStream)
         .table(table)
@@ -140,12 +157,16 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     SimpleDataUtil.assertTableRows(table, convertToRowData(rows));
   }
 
+  private List<Row> generateRows(String prefix) {
+    return isParquet ? createRowsWithGeom("") : createRows("");
+  }
+
   private void testWriteRow(TableSchema tableSchema, DistributionMode distributionMode)
       throws Exception {
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+    List<Row> rows = generateRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), typeInformation);
 
-    FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+    FlinkSink.forRow(dataStream, this.tableSchema)
         .table(table)
         .tableLoader(tableLoader)
         .tableSchema(tableSchema)
@@ -170,7 +191,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @Test
   public void testWriteRowWithTableSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.NONE);
+    testWriteRow(tableSchema, DistributionMode.NONE);
   }
 
   @Test
@@ -236,7 +257,7 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
 
   @Test
   public void testShuffleByPartitionWithSchema() throws Exception {
-    testWriteRow(SimpleDataUtil.FLINK_SCHEMA, DistributionMode.HASH);
+    testWriteRow(tableSchema, DistributionMode.HASH);
     if (partitioned) {
       Assert.assertEquals(
           "There should be only 1 data file in partition 'aaa'", 1, partitionFiles("aaa"));
@@ -256,9 +277,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .catalog()
             .createTable(
                 TableIdentifier.of("left"),
-                SimpleDataUtil.SCHEMA,
+                schema,
                 partitioned
-                    ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                    ? PartitionSpec.builderFor(schema).identity("data").build()
                     : PartitionSpec.unpartitioned(),
                 props);
     TableLoader leftTableLoader =
@@ -269,9 +290,9 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .catalog()
             .createTable(
                 TableIdentifier.of("right"),
-                SimpleDataUtil.SCHEMA,
+                schema,
                 partitioned
-                    ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                    ? PartitionSpec.builderFor(schema).identity("data").build()
                     : PartitionSpec.unpartitioned(),
                 props);
     TableLoader rightTableLoader =
@@ -285,28 +306,28 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
             .setMaxParallelism(parallelism);
     env.getConfig().disableAutoGeneratedUIDs();
 
-    List<Row> leftRows = createRows("left-");
+    List<Row> leftRows = generateRows("left-");
     DataStream<Row> leftStream =
-        env.fromCollection(leftRows, ROW_TYPE_INFO)
+        env.fromCollection(leftRows, typeInformation)
             .name("leftCustomSource")
             .uid("leftCustomSource");
-    FlinkSink.forRow(leftStream, SimpleDataUtil.FLINK_SCHEMA)
+    FlinkSink.forRow(leftStream, tableSchema)
         .table(leftTable)
         .tableLoader(leftTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .tableSchema(tableSchema)
         .distributionMode(DistributionMode.NONE)
         .uidPrefix("leftIcebergSink")
         .append();
 
-    List<Row> rightRows = createRows("right-");
+    List<Row> rightRows = generateRows("right-");
     DataStream<Row> rightStream =
-        env.fromCollection(rightRows, ROW_TYPE_INFO)
+        env.fromCollection(rightRows, typeInformation)
             .name("rightCustomSource")
             .uid("rightCustomSource");
-    FlinkSink.forRow(rightStream, SimpleDataUtil.FLINK_SCHEMA)
+    FlinkSink.forRow(rightStream, tableSchema)
         .table(rightTable)
         .tableLoader(rightTableLoader)
-        .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+        .tableSchema(tableSchema)
         .writeParallelism(parallelism)
         .distributionMode(DistributionMode.HASH)
         .uidPrefix("rightIcebergSink")
@@ -335,11 +356,11 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.DISTRIBUTION_MODE.key(), "UNRECOGNIZED");
 
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+    List<Row> rows = generateRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), typeInformation);
 
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        FlinkSink.forRow(dataStream, tableSchema)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)
@@ -355,11 +376,11 @@ public class TestFlinkIcebergSink extends TestFlinkIcebergSinkBase {
     Map<String, String> newProps = Maps.newHashMap();
     newProps.put(FlinkWriteOptions.WRITE_FORMAT.key(), "UNRECOGNIZED");
 
-    List<Row> rows = createRows("");
-    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), ROW_TYPE_INFO);
+    List<Row> rows = generateRows("");
+    DataStream<Row> dataStream = env.addSource(createBoundedSource(rows), typeInformation);
 
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        FlinkSink.forRow(dataStream, tableSchema)
             .table(table)
             .tableLoader(tableLoader)
             .writeParallelism(parallelism)

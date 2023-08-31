@@ -41,15 +41,18 @@ import org.apache.flink.table.data.ArrayData;
 import org.apache.flink.table.data.DecimalData;
 import org.apache.flink.table.data.GenericArrayData;
 import org.apache.flink.table.data.GenericMapData;
+import org.apache.flink.table.data.GenericRowData;
 import org.apache.flink.table.data.MapData;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.table.data.TimestampData;
+import org.apache.flink.table.data.binary.BinaryRawValueData;
 import org.apache.flink.table.data.conversion.DataStructureConverter;
 import org.apache.flink.table.data.conversion.DataStructureConverters;
 import org.apache.flink.table.runtime.typeutils.InternalSerializers;
 import org.apache.flink.table.types.logical.ArrayType;
 import org.apache.flink.table.types.logical.LogicalType;
 import org.apache.flink.table.types.logical.MapType;
+import org.apache.flink.table.types.logical.RawType;
 import org.apache.flink.table.types.logical.RowType;
 import org.apache.flink.table.types.utils.TypeConversions;
 import org.apache.flink.types.Row;
@@ -68,6 +71,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.iceberg.util.DateTimeUtil;
 import org.assertj.core.api.Assertions;
 import org.junit.Assert;
+import org.locationtech.jts.geom.Geometry;
 
 public class TestHelpers {
   private TestHelpers() {}
@@ -178,11 +182,22 @@ public class TestHelpers {
       // if the outer struct value is null. So we need to check the nullable for actualRowData here.
       // For more details
       // please see issue #2738.
-      Object actual =
-          actualRowData.isNullAt(i)
-              ? null
-              : RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
-      assertEquals(types.get(i), logicalType, expected, actual);
+      if (actualRowData.isNullAt(i)) {
+        assertEquals(types.get(i), logicalType, expected, null);
+      } else if (logicalType instanceof RawType) {
+        if (actualRowData instanceof GenericRowData) {
+          assertEquals(
+              types.get(i), logicalType, expected, ((GenericRowData) actualRowData).getField(i));
+        } else {
+          RawType<?> rawType = (RawType<?>) logicalType;
+          BinaryRawValueData rawValueData = (BinaryRawValueData) actualRowData.getRawValue(i);
+          Object actual = rawValueData.toObject(rawType.getTypeSerializer());
+          assertEquals(types.get(i), logicalType, expected, actual);
+        }
+      } else {
+        Object actual = RowData.createFieldGetter(logicalType, i).getFieldOrNull(actualRowData);
+        assertEquals(types.get(i), logicalType, expected, actual);
+      }
     }
   }
 
@@ -296,6 +311,12 @@ public class TestHelpers {
       case FIXED:
         Assertions.assertThat(expected).as("Should expect byte[]").isInstanceOf(byte[].class);
         Assert.assertArrayEquals("binary should be equal", (byte[]) expected, (byte[]) actual);
+        break;
+      case GEOMETRY:
+        Assertions.assertThat(logicalType).as("Should be a RawType").isInstanceOf(RawType.class);
+        Assertions.assertThat(expected).as("Should expect Geometry").isInstanceOf(Geometry.class);
+        Assertions.assertThat(actual).as("Should expect Geometry").isInstanceOf(Geometry.class);
+        Assert.assertEquals("the geometry value should be equal", expected, actual);
         break;
       default:
         throw new IllegalArgumentException("Not a supported type: " + type);

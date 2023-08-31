@@ -18,13 +18,18 @@
  */
 package org.apache.iceberg.flink.sink;
 
+import static org.apache.iceberg.flink.sink.TestFlinkIcebergSinkBase.ROW_TYPE_INFO_WITH_GEOM;
+
 import java.util.List;
+import org.apache.flink.api.common.typeinfo.TypeInformation;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableSchema;
 import org.apache.flink.test.util.MiniClusterWithClientResource;
 import org.apache.flink.types.Row;
 import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
+import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotRef;
 import org.apache.iceberg.TableProperties;
 import org.apache.iceberg.data.Record;
@@ -50,6 +55,9 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
+  private final Schema schema;
+  private final TableSchema tableSchema;
+  private final TypeInformation<Row> typeInformation;
 
   @ClassRule
   public static final MiniClusterWithClientResource MINI_CLUSTER_RESOURCE =
@@ -86,6 +94,11 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
     this.parallelism = parallelism;
     this.partitioned = partitioned;
     this.writeDistributionMode = writeDistributionMode;
+    this.isParquet = format.equals("parquet");
+    this.schema = this.isParquet ? SimpleDataUtil.SCHEMA_WITH_GEOM : SimpleDataUtil.SCHEMA;
+    this.tableSchema =
+        this.isParquet ? SimpleDataUtil.FLINK_SCHEMA_WITH_GEOM : SimpleDataUtil.FLINK_SCHEMA;
+    this.typeInformation = this.isParquet ? ROW_TYPE_INFO_WITH_GEOM : ROW_TYPE_INFO;
   }
 
   @Before
@@ -95,9 +108,9 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
             .catalog()
             .createTable(
                 TestFixtures.TABLE_IDENTIFIER,
-                SimpleDataUtil.SCHEMA,
+                schema,
                 partitioned
-                    ? PartitionSpec.builderFor(SimpleDataUtil.SCHEMA).identity("data").build()
+                    ? PartitionSpec.builderFor(schema).identity("data").build()
                     : PartitionSpec.unpartitioned(),
                 ImmutableMap.of(
                     TableProperties.DEFAULT_FILE_FORMAT,
@@ -131,9 +144,8 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
         .commit();
 
     DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
-    FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA).table(table);
+        env.addSource(new BoundedTestSource<>(ImmutableList.of()), typeInformation);
+    FlinkSink.Builder builder = FlinkSink.forRow(dataStream, tableSchema).table(table);
 
     // Use schema identifier field IDs as equality field id list by default
     Assert.assertEquals(
@@ -194,11 +206,11 @@ public class TestFlinkIcebergSinkV2 extends TestFlinkIcebergSinkV2Base {
   @Test
   public void testUpsertModeCheck() throws Exception {
     DataStream<Row> dataStream =
-        env.addSource(new BoundedTestSource<>(ImmutableList.of()), ROW_TYPE_INFO);
+        env.addSource(new BoundedTestSource<>(ImmutableList.of()), typeInformation);
     FlinkSink.Builder builder =
-        FlinkSink.forRow(dataStream, SimpleDataUtil.FLINK_SCHEMA)
+        FlinkSink.forRow(dataStream, tableSchema)
             .tableLoader(tableLoader)
-            .tableSchema(SimpleDataUtil.FLINK_SCHEMA)
+            .tableSchema(tableSchema)
             .writeParallelism(parallelism)
             .upsert(true);
 

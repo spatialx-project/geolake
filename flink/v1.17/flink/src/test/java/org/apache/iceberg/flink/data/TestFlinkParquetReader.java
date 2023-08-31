@@ -19,10 +19,12 @@
 package org.apache.iceberg.flink.data;
 
 import static org.apache.iceberg.types.Types.NestedField.optional;
+import static org.apache.iceberg.types.Types.NestedField.required;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.generic.GenericData;
@@ -47,6 +49,7 @@ import org.apache.iceberg.relocated.com.google.common.collect.Lists;
 import org.apache.iceberg.types.Types;
 import org.apache.parquet.avro.AvroParquetWriter;
 import org.apache.parquet.hadoop.ParquetWriter;
+import org.apache.parquet.schema.MessageType;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -105,7 +108,9 @@ public class TestFlinkParquetReader extends DataTest {
     try (FileAppender<Record> writer =
         Parquet.write(Files.localOutput(testFile))
             .schema(schema)
-            .createWriterFunc(GenericParquetWriter::buildWriter)
+            .createWriterFunc(
+                (MessageType type) ->
+                    GenericParquetWriter.buildWriter(schema, type, new HashMap<>()))
             .build()) {
       writer.addAll(iterable);
     }
@@ -134,5 +139,11 @@ public class TestFlinkParquetReader extends DataTest {
     writeAndValidate(
         RandomGenericData.generateFallbackRecords(schema, NUM_RECORDS, 21124, NUM_RECORDS / 20),
         schema);
+  }
+
+  @Test
+  public void testReadingGeometry() throws IOException {
+    Schema schema = new Schema(required(100, "geom", Types.GeometryType.get()));
+    writeAndValidate(schema);
   }
 }

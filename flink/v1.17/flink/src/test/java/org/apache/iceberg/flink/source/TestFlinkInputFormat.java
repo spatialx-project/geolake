@@ -108,12 +108,21 @@ public class TestFlinkInputFormat extends TestFlinkSource {
 
   @Test
   public void testBasicProjection() throws IOException {
-    Schema writeSchema =
-        new Schema(
-            Types.NestedField.required(0, "id", Types.LongType.get()),
-            Types.NestedField.optional(1, "data", Types.StringType.get()),
-            Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
-
+    Schema writeSchema;
+    if (isParquet) {
+      writeSchema =
+          new Schema(
+              Types.NestedField.required(0, "id", Types.LongType.get()),
+              Types.NestedField.optional(1, "data", Types.StringType.get()),
+              Types.NestedField.optional(2, "time", Types.TimestampType.withZone()),
+              Types.NestedField.optional(3, "geom", Types.GeometryType.get()));
+    } else {
+      writeSchema =
+          new Schema(
+              Types.NestedField.required(0, "id", Types.LongType.get()),
+              Types.NestedField.optional(1, "data", Types.StringType.get()),
+              Types.NestedField.optional(2, "time", Types.TimestampType.withZone()));
+    }
     Table table =
         catalogResource.catalog().createTable(TableIdentifier.of("default", "t"), writeSchema);
 
