@@ -4,6 +4,8 @@
 
 ![geolake-overview](docs/geolake-overview.png)
 
+Note: We develop GeoLake atop Apache Iceberg, preserving the committed history of Apache Iceberg in the process. This retention explains the extensive contributor list on our project. Maintaining the commit history facilitates easy tracking of the changes within the Apache Iceberg project, enabling us to rebase our code to the latest version of Iceberg and ensure compatibility with its new releases.
+
 ## GeoLake Architecture
 
 GeoLake can be used to build a lakehouse with geospatial support. It is built on top of [Apache Spark](https://spark.apache.org/) and [Apache Iceberg](https://iceberg.apache.org/).
